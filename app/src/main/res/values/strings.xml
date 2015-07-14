@@ -1,7 +1,13 @@
 <resources>
-    <string name="app_name">Map</string>
+    <string name="app_name">MapBrowser</string>
 
     <string name="hello_world">Hello world!</string>
+    <string name="radius">Radius</string>
     <string name="action_settings">Settings</string>
-    <string name="title_activity_maps">Map</string>
+    <string name="title_activity_settings">SettingsActivity</string>
+    <string name="min">1</string>
+    <string name="max">15</string>
+    <string name="save">Save</string>
+    <string name="km">km</string>
+    <string name="title_activity_main">MainActivity</string>
 </resources>
