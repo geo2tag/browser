@@ -2,25 +2,174 @@ package com.example.yana.map.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
+import android.text.format.DateFormat;
+import android.util.Log;
 
-import org.apache.http.conn.ConnectionPoolTimeoutException;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.TimeZone;
 
 /**
  * Created by Yana on 12.07.2015.
  */
 public class Util {
 
+    private static final String RADIUS_SHARED_PREF = "mySharedPreferences";
+    private static final String RADIUS = "radius";
+    private static final String JSON_SHARED_PREF = "resultJsonSharedPreferences";
+    private static final String JSON = "resultJson";
+    private static final String DATE_FROM_SHARED_PREF = "dateFromSharedPreferences";
+    private static final String DATE_FROM = "dateFrom";
+    private static final String DATE_TO_SHARED_PREF = "dateToSharedPreferences";
+    private static final String DATE_TO = "dateTo";
+    private static final String TIME_FROM_SHARED_PREF = "timeFromSharedPreferences";
+    private static final String TIME_FROM = "timeFrom";
+    private static final String TIME_TO_SHARED_PREF = "timeToSharedPreferences";
+    private static final String TIME_TO = "timeTo";
+    private static final String DATE_TIME_FROM_SHARED_PREF = "dateTimeFromSharedPreferences";
+    private static final String DATE_TIME_FROM = "dateTimeFrom";
+    private static final String DATE_TIME_TO_SHARED_PREF = "dateTimeToSharedPreferences";
+    private static final String DATE_TIME_TO = "dateTimeTo";
+
     public static int minRadius = 1;
+    public static long defaultDateFrom = 0;
+    public static long defaultDateTo;
+    public static String defaultJson = "";
+    public static String defaultStringDateFrom = "01-01-1970";
+    public static String defaultStringTimeFrom = "0:0";
 
     public static void saveRadius(Context ctx, int radius) {
-        SharedPreferences preferences = ctx.getSharedPreferences("mySharedPreferences", ctx.MODE_PRIVATE);
+        SharedPreferences preferences = ctx.getSharedPreferences(RADIUS_SHARED_PREF, Context.MODE_PRIVATE);
         SharedPreferences.Editor editor = preferences.edit();
-        editor.putInt("radius", radius);
-        editor.commit();
-    };
+        editor.putInt(RADIUS, radius);
+        editor.apply();
+    }
 
     public static int getRadius(Context ctx) {
-        SharedPreferences preferences = ctx.getSharedPreferences("mySharedPreferences", ctx.MODE_PRIVATE);
-        return preferences.getInt("radius", minRadius);
-    };
+        SharedPreferences preferences = ctx.getSharedPreferences(RADIUS_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getInt(RADIUS, minRadius);
+    }
+
+    public static void saveJson(Context ctx, String resultJson) {
+        SharedPreferences preferences = ctx.getSharedPreferences(JSON_SHARED_PREF, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString(JSON, resultJson);
+        editor.apply();
+    }
+
+    public static String getJson(Context ctx) {
+        SharedPreferences preferences = ctx.getSharedPreferences(JSON_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getString(JSON, defaultJson);
+    }
+
+    public static void saveDateFrom(Context ctx, String dateFrom) {
+        SharedPreferences preferences = ctx.getSharedPreferences(DATE_FROM_SHARED_PREF, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString(DATE_FROM, dateFrom);
+        editor.apply();
+    }
+
+    public static String getDateFrom(Context ctx) {
+        SharedPreferences preferences = ctx.getSharedPreferences(DATE_FROM_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getString(DATE_FROM, defaultStringDateFrom);
+    }
+
+    public static void saveDateTo(Context ctx, String dateTo) {
+        SharedPreferences preferences = ctx.getSharedPreferences(DATE_TO_SHARED_PREF, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString(DATE_TO, dateTo);
+        editor.apply();
+    }
+
+    public static String getDateTo(Context ctx) {
+        Calendar Current_Calendar = Calendar.getInstance(TimeZone.getTimeZone("UTC"));
+        Date Current_Date = Current_Calendar.getTime();
+        String defaultStringDateTo = "" + DateFormat.format("dd-MM-yyyy", Current_Date);
+
+        SharedPreferences preferences = ctx.getSharedPreferences(DATE_TO_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getString(DATE_TO, defaultStringDateTo);
+    }
+
+    public static void saveTimeFrom(Context ctx, String timeFrom) {
+        SharedPreferences preferences = ctx.getSharedPreferences(TIME_FROM_SHARED_PREF, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString(TIME_FROM, timeFrom);
+        editor.apply();
+    }
+
+    public static String getTimeFrom(Context ctx) {
+        SharedPreferences preferences = ctx.getSharedPreferences(TIME_FROM_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getString(TIME_FROM, defaultStringTimeFrom);
+    }
+
+    public static void saveTimeTo(Context ctx, String timeTo) {
+        SharedPreferences preferences = ctx.getSharedPreferences(TIME_TO_SHARED_PREF, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString(TIME_TO, timeTo);
+        editor.apply();
+    }
+
+    public static String getTimeTo(Context ctx) {
+        SimpleDateFormat sdf = new SimpleDateFormat("HH:mm");
+        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+        String defaultStringTimeTo = "" + sdf.format(new Date());
+        SharedPreferences preferences = ctx.getSharedPreferences(TIME_TO_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getString(TIME_TO, defaultStringTimeTo);
+    }
+
+    public static void saveDateTimeFrom(Context ctx, String dateFrom, String timeFrom) {
+        SharedPreferences preferences = ctx.getSharedPreferences(DATE_TIME_FROM_SHARED_PREF, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("dd-MM-yyyy");
+        SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm");
+        simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        timeFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+        long res = 0;
+        try {
+            long date = simpleDateFormat.parse(dateFrom).getTime();
+            long time = timeFormat.parse(timeFrom).getTime();
+            res = date + time;
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        editor.putLong(DATE_TIME_FROM, res);
+        editor.apply();
+    }
+
+    public static long getDateTimeFrom(Context ctx) {
+        SharedPreferences preferences = ctx.getSharedPreferences(DATE_TIME_FROM_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getLong(DATE_TIME_FROM, defaultDateFrom);
+    }
+
+    public static void saveDateTimeTo(Context ctx, String dateTo, String timeTo) {
+        SharedPreferences preferences = ctx.getSharedPreferences(DATE_TIME_TO_SHARED_PREF, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+
+        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("dd-MM-yyyy");
+        SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm");
+        simpleDateFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+        timeFormat.setTimeZone(TimeZone.getTimeZone("UTC"));
+
+        long res = 0;
+        try {
+            long date = simpleDateFormat.parse(dateTo).getTime();
+            long time = timeFormat.parse(timeTo).getTime();
+            res = date + time;
+        } catch (ParseException e) {
+            e.printStackTrace();
+        }
+        editor.putLong(DATE_TIME_TO, res);
+        editor.apply();
+    }
+
+    public static long getDateTimeTo(Context ctx) {
+        Calendar Current_Calendar = Calendar.getInstance();
+        Date Current_Date = Current_Calendar.getTime();
+        defaultDateTo = Current_Date.getTime();
+        SharedPreferences preferences = ctx.getSharedPreferences(DATE_TIME_TO_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getLong(DATE_TIME_TO, defaultDateTo);
+    }
 }

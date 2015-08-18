@@ -2,12 +2,23 @@
     <string name="app_name">MapBrowser</string>
 
     <string name="hello_world">Hello world!</string>
-    <string name="radius">Radius</string>
+    <string name="radius">Radius  </string>
     <string name="action_settings">Settings</string>
     <string name="title_activity_settings">SettingsActivity</string>
     <string name="min">1</string>
-    <string name="max">15</string>
+    <string name="max">8005</string>
     <string name="save">Save</string>
-    <string name="km">km</string>
+    <string name="km">  km</string>
     <string name="title_activity_main">MainActivity</string>
+    <string name="dates">Dates:</string>
+    <string name="title_activity_image">ImageActivity</string>
+    <string name="selectdate">Select date</string>
+    <string name="pick_date">pick date</string>
+    <string name="hello">hello</string>
+    <string name="from">From:</string>
+    <string name="to">To:</string>
+    <string name="time">Time:</string>
+    <string name="menu_item_refresh">refresh</string>
+    <string name="working">working</string>
+    <string name="start">start</string>
 </resources>
