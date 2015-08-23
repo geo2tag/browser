@@ -36,6 +36,7 @@
             android:name=".SettingsActivity"
             android:label="@string/title_activity_settings" >
         </activity>
+        <uses-library android:name="com.google.android.maps" />
     </application>
 
 </manifest>
