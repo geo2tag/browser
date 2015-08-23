@@ -2,6 +2,14 @@ package com.example.yana.map;
 
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.Paint;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
@@ -13,10 +21,13 @@ import android.os.Handler;
 import android.support.v7.app.ActionBarActivity;
 import android.text.format.DateFormat;
 import android.util.Log;
+import android.view.Display;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.Surface;
 import android.view.View;
+import android.view.WindowManager;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -30,6 +41,7 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.GoogleMap.OnMarkerClickListener;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
@@ -86,11 +98,23 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     private AsyncTask myTask;
     private static AsyncTask innerMyTask;
     private static Menu myMenu;
+    private SensorManager sensorManager;
+    float[] mGravs = new float[3];
+    float[] mGeoMags = new float[3];
+    float[] mOldOreintation = new float[3];
+    Sensor sensorAccel;
+    Sensor sensorMagnet;
+    int rotation;
+    private static final double EARTH_RADIUS = 6378100.0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
+
+        sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
+        sensorAccel = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
+        sensorMagnet = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
 
         ctx = this;
         visibleMarkers = new HashMap<>();
@@ -105,6 +129,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         }
 
 //        myMenu = (Menu) getLastCustomNonConfigurationInstance();
+        if (getLastCustomNonConfigurationInstance() != null) {
+            visibleMarkers = (Map) getLastCustomNonConfigurationInstance();
+            Log.d("addM", "saved " + visibleMarkers);
+        }
 
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         Criteria criteria = new Criteria();
@@ -142,6 +170,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         map.setOnMyLocationChangeListener(new GoogleMap.OnMyLocationChangeListener() {
             @Override
             public void onMyLocationChange(Location location) {
+//                getActualDeviceOrientation();
                 latLng = new LatLng(location.getLatitude(), location.getLongitude());
                 myLocation = location;
 
@@ -168,14 +197,14 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         });
     }
 
-//    @Override
-//    public Menu onRetainCustomNonConfigurationInstance() {
-//        return myMenu;
-//    }
+    @Override
+    public Map onRetainCustomNonConfigurationInstance() {
+        return visibleMarkers;
+    }
 
     public static URL makeURL(int number, int offset, int radius, float reserve, String dateTimeFrom, String dateTimeTo, double lon, double lat) {
         try {
-            return new URL("http://geomongo/instance/service/testservice/point?number=" + number + "&offset=" + offset + "&channel_ids=556721a52a2e7febd2744202&channel_ids=556721a52a2e7febd2744201" +
+            return new URL("http://demo.geo2tag.org//instance/service/testservice/point?number=" + number + "&offset=" + offset + "&channel_ids=556721a52a2e7febd2744202&channel_ids=556721a52a2e7febd2744201" +
                     "&radius=" + (radius * reserve) + "&geometry={\"type\":\"Point\",\"coordinates\":[" + lon + "," + lat + "]}&date_from=" + dateTimeFrom + "&date_to=" + dateTimeTo);
         } catch (MalformedURLException e) {
             Toast.makeText(ctx, "Bad URL", Toast.LENGTH_SHORT).show();
@@ -187,10 +216,13 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
     private static void addPointsToMap(List<Point> points) {
         if ((map != null) && (points != null)) {
+
             Log.d("points", "" + points);
             LatLngBounds bounds = map.getProjection().getVisibleRegion().latLngBounds;
             Location location = map.getMyLocation();
-            if(location != null) {
+            if (location != null) {
+//                BitmapDescriptorFactory.fromBitmap(getBitmap());
+                Log.d("addM", "" + visibleMarkers);
                 for (final Point point : points) {
                     if (bounds.contains(new LatLng(point.getCoordinates().getLat(), point.getCoordinates().getLon()))
                             && (CalculationDistance(point.getCoordinates(), new LatLng(location.getLatitude(), location.getLongitude())) <= Util.getRadius(ctx))
@@ -199,6 +231,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                         if (!visibleMarkers.containsKey(point.getId())) {
                             MarkerOptions markerOptions = getMarkerForItem(point);
                             Marker myMarker = map.addMarker(markerOptions);
+                            Log.d("addM", "add marker to map");
                             visibleMarkers.put(point.getId(), myMarker);
                             photoHashMap.put(myMarker.getId(), point.getImage());
                             map.setInfoWindowAdapter(new MarkerInfoWindowAdapter());
@@ -233,7 +266,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         private LayoutInflater inflater;
 
         public MarkerInfoWindowAdapter() {
-            inflater = (LayoutInflater) ctx.getSystemService( Context.LAYOUT_INFLATER_SERVICE );
+            inflater = (LayoutInflater) ctx.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
         }
 
         @Override
@@ -298,6 +331,9 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, MIN_TIME, MIN_DISTANCE, this);
         locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, MIN_TIME, MIN_DISTANCE, this);
 
+        sensorManager.registerListener(listener, sensorAccel, SensorManager.SENSOR_DELAY_NORMAL);
+        sensorManager.registerListener(listener, sensorMagnet, SensorManager.SENSOR_DELAY_NORMAL);
+
         CameraUpdate z = CameraUpdateFactory.zoomTo(getZoomLevel(Util.getRadius(this) * METRES_IN_KILOMETRES));
         map.moveCamera(z);
 
@@ -313,6 +349,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                 savedLoc = new LatLng(loc.getLatitude(), loc.getLongitude());
             }
         }
+
+        WindowManager windowManager = ((WindowManager) getSystemService(Context.WINDOW_SERVICE));
+        Display display = windowManager.getDefaultDisplay();
+        rotation = display.getRotation();
     }
 
     private float getZoomLevel(int radius) {
@@ -324,6 +364,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     @Override
     protected void onPause() {
         super.onPause();
+        sensorManager.unregisterListener(listener);
         locationManager.removeUpdates(this);
         if (myTask != null) {
             myTask.cancel(false);
@@ -531,5 +572,64 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             super.onCancelled();
             Log.d("log", "Cancel");
         }
+    }
+
+    SensorEventListener listener = new SensorEventListener() {
+        @Override
+        public void onSensorChanged(SensorEvent event) {
+            switch (event.sensor.getType()) {
+                case Sensor.TYPE_ACCELEROMETER:
+                    for (int i = 0; i < 3; i++) {
+                        valuesAccel[i] = event.values[i];
+                    }
+                    break;
+                case Sensor.TYPE_MAGNETIC_FIELD:
+                    for (int i = 0; i < 3; i++) {
+                        valuesMagnet[i] = event.values[i];
+                    }
+                    break;
+            }
+            getActualDeviceOrientation();
+        }
+
+        @Override
+        public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+        }
+    };
+
+    float[] inR = new float[16];
+    float[] outR = new float[16];
+    float[] valuesAccel = new float[3];
+    float[] valuesMagnet = new float[3];
+    float[] valuesResult = new float[3];
+
+    void getActualDeviceOrientation() {
+        SensorManager.getRotationMatrix(inR, null, valuesAccel, valuesMagnet);
+        int x_axis = SensorManager.AXIS_X;
+        int y_axis = SensorManager.AXIS_Y;
+        switch (rotation) {
+            case (Surface.ROTATION_0):
+                break;
+            case (Surface.ROTATION_90):
+                x_axis = SensorManager.AXIS_Y;
+                y_axis = SensorManager.AXIS_MINUS_X;
+                break;
+            case (Surface.ROTATION_180):
+                y_axis = SensorManager.AXIS_MINUS_Y;
+                break;
+            case (Surface.ROTATION_270):
+                x_axis = SensorManager.AXIS_MINUS_Y;
+                y_axis = SensorManager.AXIS_X;
+                break;
+            default:
+                break;
+        }
+        SensorManager.remapCoordinateSystem(inR, x_axis, y_axis, outR);
+        SensorManager.getOrientation(outR, valuesResult);
+        valuesResult[0] = (float) Math.toDegrees(valuesResult[0]);
+        valuesResult[1] = (float) Math.toDegrees(valuesResult[1]);
+        valuesResult[2] = (float) Math.toDegrees(valuesResult[2]);
+        Log.d("orientation", "" + valuesResult[0] + " " + valuesResult[1] + " " + valuesResult[2]);
     }
 }
