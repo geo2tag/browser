@@ -3,7 +3,6 @@ package com.example.yana.map;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
@@ -21,6 +20,7 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+
 import android.support.v7.app.ActionBarActivity;
 import android.text.format.DateFormat;
 import android.util.Log;
@@ -47,12 +47,15 @@ import com.google.android.gms.maps.Projection;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
+import com.google.android.gms.maps.model.Circle;
 import com.google.android.gms.maps.model.CircleOptions;
+import com.google.android.gms.maps.model.GroundOverlay;
 import com.google.android.gms.maps.model.GroundOverlayOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
+import com.google.android.gms.maps.model.Polygon;
 import com.google.android.gms.maps.model.PolygonOptions;
 import com.squareup.picasso.Callback;
 import com.squareup.picasso.Picasso;
@@ -114,6 +117,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     Sensor sensorMagnet;
     int rotation;
     private static final double EARTH_RADIUS = 6378100.0;
+    static Polygon polygon;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -194,8 +198,9 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                     savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
                 } else {
 //                    addCircleToMap();
-                    drawTriangle();
-                    map.addCircle(new CircleOptions().center(latLng).radius(Util.getRadius(ctx) * METRES_IN_KILOMETRES).strokeWidth(2));
+//                    drawTriangle();
+//                    updateTriangle();
+                    Circle circle = map.addCircle(new CircleOptions().center(latLng).radius(Util.getRadius(ctx) * METRES_IN_KILOMETRES).strokeWidth(2));
                     Coordinate coordinate = new Coordinate(location.getLongitude(), location.getLatitude());
                     double distance = CalculationDistance(coordinate, savedLoc);
                     if (distance >= (Util.getRadius(ctx) * 0.5)) {
@@ -262,18 +267,20 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
     private static void addCircleToMap() {
 
-        Log.d("addC",  "add circle to map");
+        Log.d("addC", "add circle to map");
 
         // circle settings
         int radiusM = Util.getRadius(ctx) * METRES_IN_KILOMETRES;// your radius in meters
         double latitude = myLocation.getLatitude();// your center latitude
         double longitude = myLocation.getLongitude();// your center longitude
-        LatLng latLng = new LatLng(latitude,longitude);
+        LatLng latLng = new LatLng(latitude, longitude);
 
         // draw circle
 //        int d = 500; // diameter
-//        int d = metersToEquatorPixels(latLng, radiusM); // diameter
-        int d = metersToRadius(radiusM, myLocation.getLatitude()); // diameter
+        int d = metersToEquatorPixels(latLng, radiusM); // diameter
+//        int d = metersToRadius(radiusM, myLocation.getLatitude()); // diameter
+//        int d = convertMetersToPixels(radiusM); // diameter
+
         Bitmap bm = Bitmap.createBitmap(d, d, Bitmap.Config.ARGB_8888);
         Canvas c = new Canvas(bm);
         Paint p = new Paint();
@@ -284,7 +291,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 //        c.drawArc(oval, 0, 270, true, p);
         // generate BitmapDescriptor from circle Bitmap
         BitmapDescriptor bmD = BitmapDescriptorFactory.fromBitmap(bm);
-
         // mapView is the GoogleMap
         map.addGroundOverlay(new GroundOverlayOptions().
                 image(bmD).
@@ -292,44 +298,83 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                 transparency(0.4f));
     }
 
-    public void drawTriangle() {
+    private static int r;
+    static GroundOverlay groundOverlay;
 
+    public static void drawTriangle() {
         int radiusM = Util.getRadius(ctx) * METRES_IN_KILOMETRES;
         double latitude = myLocation.getLatitude();
         double longitude = myLocation.getLongitude();
-        LatLng latLng = new LatLng(latitude,longitude);
-        int d = metersToRadius(radiusM, myLocation.getLatitude());
+        LatLng latLng = new LatLng(latitude, longitude);
+//        int d = metersToRadius(radiusM, myLocation.getLatitude());
+//        int d = convertMetersToPixels(radiusM); // diameter
+        int d = metersToEquatorPixels(latLng, radiusM * 2);
+        r = d / 2;
         Bitmap bm = Bitmap.createBitmap(d, d, Bitmap.Config.ARGB_8888);
+        Log.d("bitmap", "" + bm.getWidth());
+        Log.d("bitmap", "" + bm.getHeight());
+
         Canvas c = new Canvas(bm);
         Paint p = new Paint();
         p.setColor(0x44ff0000);
         Path path = new Path();
         android.graphics.Point point1 = map.getProjection().toScreenLocation(latLng);
-        path = getPath(point1, d);
+        path = getPath(point1, d / 2);
         c.drawPath(path, p);
         BitmapDescriptor bmD = BitmapDescriptorFactory.fromBitmap(bm);
-        map.addGroundOverlay(new GroundOverlayOptions().
+        android.graphics.Point pos = map.getProjection().toScreenLocation(latLng);
+        pos.set(pos.x, (int) (pos.y));
+        LatLng position = map.getProjection().fromScreenLocation(pos);
+        LatLng mPos = new LatLng(map.getMyLocation().getLatitude(), map.getMyLocation().getLongitude());
+        groundOverlay = map.addGroundOverlay(new GroundOverlayOptions().
                 image(bmD).
-                position(latLng, radiusM * 2, radiusM * 2).
+                position(position, radiusM * 2, radiusM * 2).
                 transparency(0.4f));
+//        groundOverlay.setBearing(45);
     }
 
-    private android.graphics.Path getPath(android.graphics.Point point1, int width) {
+    private static android.graphics.Path getPath(android.graphics.Point point1, int hight) {
         android.graphics.Point point2 = null;
         android.graphics.Point point3 = null;
-        point2 = new android.graphics.Point(point1.x - (width / 2), point1.y - width);
-        point3 = new android.graphics.Point(point1.x + (width / 2), point1.y - width);
+        point2 = new android.graphics.Point(point1.x + (hight), point1.y - hight);
+        point3 = new android.graphics.Point(point1.x - (hight), point1.y - hight);
 
         Path path = new Path();
         path.moveTo(point1.x, point1.y);
         path.lineTo(point2.x, point2.y);
         path.lineTo(point3.x, point3.y);
 
+//        PolygonOptions polygoneOptions = new PolygonOptions()
+//                .add(map.getProjection().fromScreenLocation(point1))
+//                .add(map.getProjection().fromScreenLocation(point2))
+//                .add(map.getProjection().fromScreenLocation(point3))
+//                .strokeColor(Color.CYAN).strokeWidth(2).fillColor(0x44ff0000);
+//        polygon = map.addPolygon(polygoneOptions);
+
         return path;
+    }
+    float lastValue = 0;
+    public void updateTriangle(float value) {
+
+//        android.graphics.Point point1 = map.getProjection().toScreenLocation(latLng);
+//        android.graphics.Point point2 = null;
+//        android.graphics.Point point3 = null;
+//        List<LatLng> list = new ArrayList<LatLng>();
+//        r += 10;
+//        point2 = new android.graphics.Point(point1.x + (r), point1.y - r);
+//        point3 = new android.graphics.Point(point1.x - (r), point1.y - r/2);
+//        list.add(map.getProjection().fromScreenLocation(point3));
+//        list.add(map.getProjection().fromScreenLocation(point2));
+//        list.add(map.getProjection().fromScreenLocation(point1));
+//        polygon.setPoints(list);
+        if (groundOverlay != null && Math.abs(value - lastValue) > 10) {
+            groundOverlay.setBearing(value);
+            lastValue = value;
+        }
     }
 
     public static int metersToRadius(float meters, double latitude) {
-        return (int) (metersToEquatorPixels(latLng, meters) * (1/ Math.cos(Math.toRadians(latitude))));
+        return (int) (metersToEquatorPixels(latLng, meters) * (1 / Math.cos(Math.toRadians(latitude))));
     }
 
     public static int metersToEquatorPixels(LatLng base, float meters) {
@@ -351,6 +396,21 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         android.graphics.Point destPt = proj.toScreenLocation(new LatLng(base.latitude, base.longitude + lonDistance));
 
         return Math.abs(destPt.x - basePt.x);
+    }
+
+    private static int convertMetersToPixels(double radiusInMeters) {
+
+        double lat1 = radiusInMeters / EARTH_RADIUS;
+        double lng1 = radiusInMeters
+                / (EARTH_RADIUS * Math.cos((Math.PI * myLocation.getLatitude() / 180)));
+
+        double lat2 = myLocation.getLatitude() + lat1 * 180 / Math.PI;
+        double lng2 = myLocation.getLongitude() + lng1 * 180 / Math.PI;
+
+        android.graphics.Point p1 = map.getProjection().toScreenLocation(new LatLng(myLocation.getLatitude(), myLocation.getLongitude()));
+        android.graphics.Point p2 = map.getProjection().toScreenLocation(new LatLng(lat2, lng2));
+
+        return Math.abs(p1.x - p2.x);
     }
 
     public static void clearMap() {
@@ -659,6 +719,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                     points = newPoints;
                     addPointsToMap(points);
                 }
+                drawTriangle();
                 setRefreshActionButtonState(false);
             }
         }
@@ -735,5 +796,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         valuesResult[1] = (float) Math.toDegrees(valuesResult[1]);
         valuesResult[2] = (float) Math.toDegrees(valuesResult[2]);
         Log.d("orientation", "" + valuesResult[0] + " " + valuesResult[1] + " " + valuesResult[2]);
+        updateTriangle(valuesResult[0]);
     }
 }
