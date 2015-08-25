@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
@@ -16,12 +17,14 @@ import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
+import android.media.Image;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 
 import android.support.v7.app.ActionBarActivity;
+import android.text.Html;
 import android.text.format.DateFormat;
 import android.util.Log;
 import android.view.Display;
@@ -31,6 +34,8 @@ import android.view.MenuItem;
 import android.view.Surface;
 import android.view.View;
 import android.view.WindowManager;
+import android.view.animation.Animation;
+import android.view.animation.RotateAnimation;
 import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -118,6 +123,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     int rotation;
     private static final double EARTH_RADIUS = 6378100.0;
     static Polygon polygon;
+    private float currentDegree = 0f;
+    private long lastUpdate = 0;
+    private float last_x, last_y, last_z;
+    private static final int SHAKE_THRESHOLD = 400;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -200,6 +209,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 //                    addCircleToMap();
 //                    drawTriangle();
 //                    updateTriangle();
+                    groundOverlay.setPosition(latLng);
                     Circle circle = map.addCircle(new CircleOptions().center(latLng).radius(Util.getRadius(ctx) * METRES_IN_KILOMETRES).strokeWidth(2));
                     Coordinate coordinate = new Coordinate(location.getLongitude(), location.getLatitude());
                     double distance = CalculationDistance(coordinate, savedLoc);
@@ -300,6 +310,9 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
     private static int r;
     static GroundOverlay groundOverlay;
+    static GroundOverlayOptions groundOverlayOptions;
+    static BitmapDescriptor bmD;
+    static Bitmap bm;
 
     public static void drawTriangle() {
         int radiusM = Util.getRadius(ctx) * METRES_IN_KILOMETRES;
@@ -310,7 +323,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 //        int d = convertMetersToPixels(radiusM); // diameter
         int d = metersToEquatorPixels(latLng, radiusM * 2);
         r = d / 2;
-        Bitmap bm = Bitmap.createBitmap(d, d, Bitmap.Config.ARGB_8888);
+        bm = Bitmap.createBitmap(d, d, Bitmap.Config.ARGB_8888);
         Log.d("bitmap", "" + bm.getWidth());
         Log.d("bitmap", "" + bm.getHeight());
 
@@ -321,16 +334,19 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         android.graphics.Point point1 = map.getProjection().toScreenLocation(latLng);
         path = getPath(point1, d / 2);
         c.drawPath(path, p);
-        BitmapDescriptor bmD = BitmapDescriptorFactory.fromBitmap(bm);
+        bmD = BitmapDescriptorFactory.fromBitmap(bm);
         android.graphics.Point pos = map.getProjection().toScreenLocation(latLng);
         pos.set(pos.x, (int) (pos.y));
         LatLng position = map.getProjection().fromScreenLocation(pos);
         LatLng mPos = new LatLng(map.getMyLocation().getLatitude(), map.getMyLocation().getLongitude());
+        groundOverlayOptions = new GroundOverlayOptions().
+                image(bmD).
+                position(position, radiusM * 2, radiusM * 2).
+                transparency(0.4f);
         groundOverlay = map.addGroundOverlay(new GroundOverlayOptions().
                 image(bmD).
                 position(position, radiusM * 2, radiusM * 2).
                 transparency(0.4f));
-//        groundOverlay.setBearing(45);
     }
 
     private static android.graphics.Path getPath(android.graphics.Point point1, int hight) {
@@ -367,10 +383,20 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 //        list.add(map.getProjection().fromScreenLocation(point2));
 //        list.add(map.getProjection().fromScreenLocation(point1));
 //        polygon.setPoints(list);
-        if (groundOverlay != null && Math.abs(value - lastValue) > 10) {
+        if (groundOverlay != null) {
+            Log.d("rotate", "value " + value);
+            Log.d("rotate", "lastValue " + lastValue);
+//            Log.d("rotate", "currientDegrees" + currentDegree);
+//            Log.d("rotate", "value - currentDegrees" + (value - currentDegree));
             groundOverlay.setBearing(value);
-            lastValue = value;
+            currentDegree = value;
+
         }
+        lastValue = value;
+//        if (groundOverlay != null && Math.abs(value - lastValue) > 10) {
+//            groundOverlay.setBearing(value);
+//            lastValue = value;
+//        }
     }
 
     public static int metersToRadius(float meters, double latitude) {
@@ -739,9 +765,25 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         }
     }
 
+
+
     SensorEventListener listener = new SensorEventListener() {
         @Override
         public void onSensorChanged(SensorEvent event) {
+            float degree = Math.round(event.values[0]);
+
+//            RotateAnimation ra = new RotateAnimation(
+//                    currentDegree,
+//                    -degree,
+//                    Animation.RELATIVE_TO_SELF, 0.5f,
+//                    Animation.RELATIVE_TO_SELF,
+//            0.5f);
+//            ra.setDuration(210);
+//            ra.setFillAfter(true);
+//            ImageView image = new ImageView(ctx);
+//            image.setImageBitmap(bm);
+//            image.startAnimation(ra);
+//            currentDegree = -degree;
             switch (event.sensor.getType()) {
                 case Sensor.TYPE_ACCELEROMETER:
                     for (int i = 0; i < 3; i++) {
@@ -754,6 +796,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                     }
                     break;
             }
+
             getActualDeviceOrientation();
         }
 
@@ -796,6 +839,23 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         valuesResult[1] = (float) Math.toDegrees(valuesResult[1]);
         valuesResult[2] = (float) Math.toDegrees(valuesResult[2]);
         Log.d("orientation", "" + valuesResult[0] + " " + valuesResult[1] + " " + valuesResult[2]);
-        updateTriangle(valuesResult[0]);
+        long curTime = System.currentTimeMillis();
+
+        if ((curTime - lastUpdate) > 100) {
+            long diffTime = (curTime - lastUpdate);
+            lastUpdate = curTime;
+
+            float speed = Math.abs(valuesResult[0] + valuesResult[1] + valuesResult[2] - last_x - last_y - last_z)/ diffTime * 10000;
+            Log.d("speed", "" + speed);
+
+            if (speed > SHAKE_THRESHOLD) {
+                updateTriangle(valuesResult[0]);
+            }
+
+            last_x = valuesResult[0];
+            last_y = valuesResult[1];
+            last_z = valuesResult[2];
+        }
+//        updateTriangle(valuesResult[0]);
     }
 }
