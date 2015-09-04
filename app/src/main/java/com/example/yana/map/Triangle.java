@@ -1,13 +1,12 @@
 package com.example.yana.map;
 
-import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.Path;
+import android.graphics.Point;
 import android.location.Location;
 
-import com.example.yana.map.util.Util;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.Projection;
 import com.google.android.gms.maps.model.BitmapDescriptor;
@@ -22,19 +21,21 @@ import com.google.android.gms.maps.model.LatLng;
 public class Triangle {
     static GroundOverlay groundOverlay;
     private static Bitmap bm;
+    private static GoogleMap mMap;
 
-    public static void drawTriangle(Context ctx, Location myLocation, GoogleMap map) {
-        int radiusM = Util.getRadius(ctx) * MainActivity.METRES_IN_KILOMETRES;
+    Triangle(GoogleMap map, int radiusM) {
+        mMap = map;
+        Location myLocation = mMap.getMyLocation();
         double latitude = myLocation.getLatitude();
         double longitude = myLocation.getLongitude();
         LatLng latLng = new LatLng(latitude, longitude);
-        int d = metersToEquatorPixels(latLng, radiusM * 2, map);
+        int d = metersToEquatorPixels(latLng, radiusM * 2, mMap);
         bm = Bitmap.createBitmap(d, d, Bitmap.Config.ARGB_8888);
 
         Canvas c = new Canvas(bm);
         Paint p = new Paint();
         p.setColor(0x44ff0000);
-        android.graphics.Point point1 = map.getProjection().toScreenLocation(latLng);
+        Point point1 = mMap.getProjection().toScreenLocation(latLng);
         Path path = getPath(point1, d / 2);
         c.drawPath(path, p);
 
@@ -43,13 +44,13 @@ public class Triangle {
                 image(bmD).
                 position(latLng, radiusM * 2, radiusM * 2).
                 transparency(0.4f);
-        groundOverlay = map.addGroundOverlay(groundOverlayOptions);
+        groundOverlay = mMap.addGroundOverlay(groundOverlayOptions);
     }
 
-    private static android.graphics.Path getPath(android.graphics.Point point1, int height) {
+    private Path getPath(Point point1, int height) {
         point1.set(bm.getWidth() / 2, bm.getHeight() / 2);
-        android.graphics.Point point2 = new android.graphics.Point(bm.getWidth() / 2 + height, 0);
-        android.graphics.Point point3 = new android.graphics.Point(bm.getWidth() / 2 - height, 0);
+        Point point2 = new Point(bm.getWidth() / 2 + height, 0);
+        Point point3 = new Point(bm.getWidth() / 2 - height, 0);
 
         Path path = new Path();
         path.moveTo(point1.x, point1.y);
@@ -59,13 +60,13 @@ public class Triangle {
         return path;
     }
 
-    public static void updateTriangle(float value) {
+    public void updateTriangle(float value) {
         if (groundOverlay != null) {
             groundOverlay.setBearing(value);
         }
     }
 
-    public static int metersToEquatorPixels(LatLng base, float meters, GoogleMap map) {
+    public int metersToEquatorPixels(LatLng base, float meters, GoogleMap map) {
         final double OFFSET_LON = 0.5d;
 
         Location baseLoc = new Location("");
@@ -84,5 +85,30 @@ public class Triangle {
         android.graphics.Point destPt = proj.toScreenLocation(new LatLng(base.latitude, base.longitude + lonDistance));
 
         return Math.abs(destPt.x - basePt.x);
+    }
+
+    public LatLng[] getCoords() {
+        LatLng[] coords = new LatLng[3];
+        float mapBearing = mMap.getCameraPosition().bearing;
+        LatLng position = groundOverlay.getPosition();
+        double bearing = groundOverlay.getBearing();
+        Point p1 = mMap.getProjection().toScreenLocation(position);
+        Point northeastProj = mMap.getProjection().toScreenLocation(groundOverlay.getBounds().northeast);
+        double zoomDist = Math.sqrt((p1.x - northeastProj.x) * (p1.x - northeastProj.x) +
+                (p1.y - northeastProj.y) * (p1.y - northeastProj.y));
+        Point p2 = new Point((int) (p1.x - zoomDist * Math.cos(Math.toRadians(-135 - bearing + mapBearing))),
+                (int) (p1.y + zoomDist * Math.sin(Math.toRadians(-135 -  bearing + mapBearing))));
+
+        Point p3 = new Point((int) (p1.x - zoomDist * Math.cos(Math.toRadians(-45 - bearing + mapBearing))),
+                (int) (p1.y + zoomDist * Math.sin(Math.toRadians(-45 - bearing + mapBearing))));
+
+        LatLng latLngP2 = mMap.getProjection().fromScreenLocation(p2);
+        LatLng latLngP3 = mMap.getProjection().fromScreenLocation(p3);
+
+        coords[0] = position;
+        coords[1] = latLngP2;
+        coords[2] = latLngP3;
+
+        return coords;
     }
 }

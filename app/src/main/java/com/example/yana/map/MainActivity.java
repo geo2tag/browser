@@ -40,7 +40,6 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
-import com.google.android.gms.maps.model.Polygon;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -98,6 +97,8 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     private long lastUpdate = 0;
     private float last_x, last_y, last_z;
     private static final int SHAKE_THRESHOLD = 20;
+    private Triangle triangle;
+    private LatLng[] coords;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -171,7 +172,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                             .newLatLng(latLng);
                     map.animateCamera(center);
                     map.moveCamera(center);
-
                     getPoints();
                     addPointsToMap(points);
                     savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
@@ -287,7 +287,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             map.moveCamera(center);
 //            getPoints();
             Location loc = map.getMyLocation();
-//            drawTriangle();
             if (loc != null) {
                 savedLoc = new LatLng(loc.getLatitude(), loc.getLongitude());
             }
@@ -365,8 +364,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         getPoints();
-//        Triangle.getCoords(map);
-//        drawTriangle();
     }
 
     @Override
@@ -412,7 +409,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         myTask = (new ParseTask()).execute();
     }
 
-    public static class ParseTask extends AsyncTask<Void, Void, String> {
+    public class ParseTask extends AsyncTask<Void, Void, String> {
         private HttpURLConnection urlConnection = null;
         private BufferedReader reader = null;
 
@@ -498,7 +495,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                     points = newPoints;
                     addPointsToMap(points);
                 }
-                Triangle.drawTriangle(ctx, myLocation, map);
+                triangle = new Triangle(map, Util.getRadius(ctx) * METRES_IN_KILOMETRES);
                 setRefreshActionButtonState(false);
             }
         }
@@ -581,8 +578,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             Log.d("speed", "" + speed);
 
             if (speed > SHAKE_THRESHOLD) {
-                Triangle.updateTriangle((float) Math.toDegrees(valuesResult[0]));
-//                Triangle.getCoords(map);
+                if(triangle != null) {
+                    triangle.updateTriangle((float) Math.toDegrees(valuesResult[0]));
+                    coords = triangle.getCoords();
+                }
             }
             last_x = valuesAccel[0];
             last_y = valuesAccel[1];
