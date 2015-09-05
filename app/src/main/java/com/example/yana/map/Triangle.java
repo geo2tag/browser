@@ -96,11 +96,11 @@ public class Triangle {
         Point northeastProj = mMap.getProjection().toScreenLocation(groundOverlay.getBounds().northeast);
         double zoomDist = Math.sqrt((p1.x - northeastProj.x) * (p1.x - northeastProj.x) +
                 (p1.y - northeastProj.y) * (p1.y - northeastProj.y));
-        Point p2 = new Point((int) (p1.x - zoomDist * Math.cos(Math.toRadians(-135 - bearing + mapBearing))),
-                (int) (p1.y + zoomDist * Math.sin(Math.toRadians(-135 -  bearing + mapBearing))));
 
-        Point p3 = new Point((int) (p1.x - zoomDist * Math.cos(Math.toRadians(-45 - bearing + mapBearing))),
+        Point p2 = new Point((int) (p1.x - zoomDist * Math.cos(Math.toRadians(-45 - bearing + mapBearing))),
                 (int) (p1.y + zoomDist * Math.sin(Math.toRadians(-45 - bearing + mapBearing))));
+        Point p3 = new Point((int) (p1.x - zoomDist * Math.cos(Math.toRadians(-135 - bearing + mapBearing))),
+                (int) (p1.y + zoomDist * Math.sin(Math.toRadians(-135 -  bearing + mapBearing))));
 
         LatLng latLngP2 = mMap.getProjection().fromScreenLocation(p2);
         LatLng latLngP3 = mMap.getProjection().fromScreenLocation(p3);

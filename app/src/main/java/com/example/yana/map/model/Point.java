@@ -33,7 +33,6 @@ public class Point {
             id = idObject.getString("$oid");
             location = point.getJSONObject("location");
             coordinatesArray = location.getJSONArray("coordinates");
-            Log.d("coord", "" + coordinatesArray.getDouble(0) + " " + coordinatesArray.getDouble(1));
             coordinates = new Coordinate();
             coordinates.setLon(coordinatesArray.getDouble(0));
             coordinates.setLat(coordinatesArray.getDouble(1));
@@ -42,7 +41,6 @@ public class Point {
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm");
             sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
             dateText = sdf.format(new Date(date));
-            Log.d("UTC", dateText);
             json = point.getJSONObject("json");
             image = json.getString("image_url");
             description = json.getString("description");
@@ -57,6 +55,12 @@ public class Point {
 
     public Coordinate getCoordinates() {
         return coordinates;
+    }
+
+    public void setCoordinates(double lat, double lon) {
+        coordinates = new Coordinate();
+        coordinates.setLat(lat);
+        coordinates.setLon(lon);
     }
 
     public long getDate() {

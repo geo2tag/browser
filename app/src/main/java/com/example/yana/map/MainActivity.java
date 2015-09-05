@@ -80,6 +80,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     private LatLng savedLoc;
     private static Boolean available = false;
     private static List<Point> points;
+    private static List<Point> pointsOnMap;
     private static Map<String, Marker> visibleMarkers;
     public static Map<String, String> photoHashMap;
     private static String dateTo;
@@ -98,7 +99,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     private float last_x, last_y, last_z;
     private static final int SHAKE_THRESHOLD = 20;
     private Triangle triangle;
-    private LatLng[] coords;
+    private static LatLng[] coords;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -209,7 +210,9 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     }
 
     private static void addPointsToMap(List<Point> points) {
+        showPointsOnTriangle();
         if ((map != null) && (points != null)) {
+            pointsOnMap = new ArrayList<>();
             LatLngBounds bounds = map.getProjection().getVisibleRegion().latLngBounds;
             Location location = map.getMyLocation();
             if (location != null) {
@@ -224,6 +227,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                             visibleMarkers.put(point.getId(), myMarker);
                             photoHashMap.put(myMarker.getId(), point.getImage());
                             map.setInfoWindowAdapter(new MarkerInfoWindowAdapter(ctx));
+                            pointsOnMap.add(point);
                         }
                     } else {
                         if (visibleMarkers.containsKey(point.getId())) {
@@ -581,11 +585,50 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                 if(triangle != null) {
                     triangle.updateTriangle((float) Math.toDegrees(valuesResult[0]));
                     coords = triangle.getCoords();
+                    Log.d("coords", "" + coords[0].latitude + " " + coords[0].longitude);
+                    Log.d("coords", "" + coords[1].latitude + " " + coords[1].longitude);
+                    Log.d("coords", "" + coords[2].latitude + " " + coords[2].longitude);
                 }
             }
             last_x = valuesAccel[0];
             last_y = valuesAccel[1];
             last_z = valuesAccel[2];
+        }
+    }
+
+    public static void showPointsOnTriangle() {
+//        if(pointsOnMap == null)
+//            pointsOnMap = new ArrayList<>();
+//        Point p = new Point(new JSONObject());
+//        p.setCoordinates(59.9978704, 30.3258796);
+//        map.addMarker(new MarkerOptions().position(new LatLng(p.getCoordinates().getLat(),
+//                p.getCoordinates().getLon())));
+//        pointsOnMap.add(p);
+//        p = new Point(new JSONObject());
+//        p.setCoordinates(59.9908704, 30.3208796);
+//        map.addMarker(new MarkerOptions().position(new LatLng(p.getCoordinates().getLat(),
+//                p.getCoordinates().getLon())));
+//        pointsOnMap.add(p);
+        if(coords != null) {
+            for (Point point : pointsOnMap) {
+                if (((point.getCoordinates().getLat() - coords[0].latitude) *
+                        (coords[0].longitude - coords[1].longitude) -
+                        (point.getCoordinates().getLon() - coords[0].longitude) *
+                                (coords[0].latitude - coords[1].latitude) >= 0)) {
+                    if ((point.getCoordinates().getLat() - coords[1].latitude) *
+                            (coords[1].longitude - coords[2].longitude) -
+                            (point.getCoordinates().getLon() - coords[1].longitude) *
+                                    (coords[1].latitude - coords[2].latitude) >= 0) {
+                        if ((point.getCoordinates().getLat() - coords[2].latitude) *
+                                (coords[2].longitude - coords[0].longitude) -
+                                (point.getCoordinates().getLon() - coords[2].longitude) *
+                                        (coords[2].latitude - coords[0].latitude) >= 0) {
+                            Log.d("inTriangle", point.getCoordinates().getLat() + " " +
+                                    point.getCoordinates().getLon());
+                        }
+                    }
+                }
+            }
         }
     }
 }
