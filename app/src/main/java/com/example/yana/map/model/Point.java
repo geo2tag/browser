@@ -1,7 +1,5 @@
 package com.example.yana.map.model;
 
-import android.util.Log;
-
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -26,6 +24,15 @@ public class Point {
     private JSONObject json;
     private String image;
     private String description;
+    private boolean isShown = true;
+
+    public boolean isShown() {
+        return isShown;
+    }
+
+    public void setShown(boolean shown) {
+        this.isShown = shown;
+    }
 
     public Point(JSONObject point){
         try {
@@ -47,6 +54,10 @@ public class Point {
         } catch (JSONException e) {
             e.printStackTrace();
         }
+    }
+
+    public void setId(String id) {
+        this.id = id;
     }
 
     public String getId() {
@@ -77,5 +88,9 @@ public class Point {
 
     public String getDescription() {
         return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 }

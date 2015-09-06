@@ -35,7 +35,7 @@ import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.GoogleMap.OnMarkerClickListener;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
-import com.google.android.gms.maps.model.CircleOptions;
+import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.Marker;
@@ -122,7 +122,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             finish();
             return;
         }
-
+        addMyMarkers();
         if (getLastCustomNonConfigurationInstance() != null) {
             visibleMarkers = (Map) getLastCustomNonConfigurationInstance();
             Log.d("addM", "saved " + visibleMarkers);
@@ -148,7 +148,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                 handler.post(new Runnable() {
                     @Override
                     public void run() {
-
                         if (marker.isInfoWindowShown())
                             handler.removeCallbacks(this);
                         {
@@ -176,10 +175,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                     getPoints();
                     addPointsToMap(points);
                     savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
+                    triangle = new Triangle(map, latLng, METRES_IN_KILOMETRES);
                 } else {
                     if (Triangle.groundOverlay != null)
                         Triangle.groundOverlay.setPosition(latLng);
-                    map.addCircle(new CircleOptions().center(latLng).radius(Util.getRadius(ctx) * METRES_IN_KILOMETRES).strokeWidth(2));
                     Coordinate coordinate = new Coordinate(location.getLongitude(), location.getLatitude());
                     double distance = CalculationDistance(coordinate, savedLoc);
                     if (distance >= (Util.getRadius(ctx) * 0.5)) {
@@ -199,7 +198,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
     public static URL makeURL(int number, int offset, int radius, float reserve, String dateTimeFrom, String dateTimeTo, double lon, double lat) {
         try {
-            return new URL("http://demo.geo2tag.org//instance/service/testservice/point?number=" + number + "&offset=" + offset + "&channel_ids=556721a52a2e7febd2744202&channel_ids=556721a52a2e7febd2744201" +
+            return new URL("http://geomongo//instance/service/testservice/point?number=" + number + "&offset=" + offset + "&channel_ids=556721a52a2e7febd2744202&channel_ids=556721a52a2e7febd2744201" +
                     "&radius=" + (radius * reserve) + "&geometry={\"type\":\"Point\",\"coordinates\":[" + lon + "," + lat + "]}&date_from=" + dateTimeFrom + "&date_to=" + dateTimeTo);
         } catch (MalformedURLException e) {
             Toast.makeText(ctx, "Bad URL", Toast.LENGTH_SHORT).show();
@@ -210,7 +209,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     }
 
     private static void addPointsToMap(List<Point> points) {
-        showPointsOnTriangle();
         if ((map != null) && (points != null)) {
             pointsOnMap = new ArrayList<>();
             LatLngBounds bounds = map.getProjection().getVisibleRegion().latLngBounds;
@@ -242,10 +240,12 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         }
     }
 
-    public static void clearMap() {
+    public void clearMap() {
         photoHashMap.clear();
         visibleMarkers.clear();
         map.clear();
+        addMyMarkers();
+        coords = null;
     }
 
     public void setDates() {
@@ -267,7 +267,8 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
     private static MarkerOptions getMarkerForItem(Point point) {
         return new MarkerOptions().position(new LatLng(point.getCoordinates().getLat(),
-                point.getCoordinates().getLon())).title(point.getDescription()).snippet(point.getDateText());
+                point.getCoordinates().getLon())).title(point.getDescription()).snippet(point.getDateText()).
+                icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
     }
 
     @Override
@@ -289,7 +290,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                     .newLatLng(latLng);
             map.animateCamera(center);
             map.moveCamera(center);
-//            getPoints();
             Location loc = map.getMyLocation();
             if (loc != null) {
                 savedLoc = new LatLng(loc.getLatitude(), loc.getLongitude());
@@ -368,6 +368,8 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         getPoints();
+        clearMap();
+        triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
     }
 
     @Override
@@ -499,7 +501,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                     points = newPoints;
                     addPointsToMap(points);
                 }
-                triangle = new Triangle(map, Util.getRadius(ctx) * METRES_IN_KILOMETRES);
                 setRefreshActionButtonState(false);
             }
         }
@@ -582,12 +583,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             Log.d("speed", "" + speed);
 
             if (speed > SHAKE_THRESHOLD) {
-                if(triangle != null) {
+                if (triangle != null) {
                     triangle.updateTriangle((float) Math.toDegrees(valuesResult[0]));
                     coords = triangle.getCoords();
-                    Log.d("coords", "" + coords[0].latitude + " " + coords[0].longitude);
-                    Log.d("coords", "" + coords[1].latitude + " " + coords[1].longitude);
-                    Log.d("coords", "" + coords[2].latitude + " " + coords[2].longitude);
+                    showPointsOnTriangle();
                 }
             }
             last_x = valuesAccel[0];
@@ -596,39 +595,79 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         }
     }
 
+    public void addMyMarkers() {
+        Point p;
+        if (pointsOnMap == null)
+            pointsOnMap = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            p = new Point(new JSONObject());
+            p.setId("id" + i);
+            p.setDescription("id" + i);
+            switch (i) {
+                case 0:
+                    p.setCoordinates(59.9978704, 30.3258796);
+                    break;
+                case 1:
+                    p.setCoordinates(59.9998704, 30.3108796);
+                    break;
+                case 2:
+                    p.setCoordinates(59.9848704, 30.3208796);
+                    break;
+                case 3:
+                    p.setCoordinates(59.9908704, 30.3308796);
+                    break;
+            }
+            pointsOnMap.add(p);
+            MarkerOptions markerOptions = getMarkerForItem(p);
+            Marker myMarker = map.addMarker(markerOptions);
+            visibleMarkers.put(p.getId(), myMarker);
+            photoHashMap.put(myMarker.getId(), p.getImage());
+            map.setInfoWindowAdapter(new MarkerInfoWindowAdapter(ctx));
+        }
+    }
+
     public static void showPointsOnTriangle() {
-//        if(pointsOnMap == null)
-//            pointsOnMap = new ArrayList<>();
-//        Point p = new Point(new JSONObject());
-//        p.setCoordinates(59.9978704, 30.3258796);
-//        map.addMarker(new MarkerOptions().position(new LatLng(p.getCoordinates().getLat(),
-//                p.getCoordinates().getLon())));
-//        pointsOnMap.add(p);
-//        p = new Point(new JSONObject());
-//        p.setCoordinates(59.9908704, 30.3208796);
-//        map.addMarker(new MarkerOptions().position(new LatLng(p.getCoordinates().getLat(),
-//                p.getCoordinates().getLon())));
-//        pointsOnMap.add(p);
-        if(coords != null) {
+        if (coords != null) {
             for (Point point : pointsOnMap) {
-                if (((point.getCoordinates().getLat() - coords[0].latitude) *
-                        (coords[0].longitude - coords[1].longitude) -
-                        (point.getCoordinates().getLon() - coords[0].longitude) *
-                                (coords[0].latitude - coords[1].latitude) >= 0)) {
-                    if ((point.getCoordinates().getLat() - coords[1].latitude) *
-                            (coords[1].longitude - coords[2].longitude) -
-                            (point.getCoordinates().getLon() - coords[1].longitude) *
-                                    (coords[1].latitude - coords[2].latitude) >= 0) {
-                        if ((point.getCoordinates().getLat() - coords[2].latitude) *
-                                (coords[2].longitude - coords[0].longitude) -
-                                (point.getCoordinates().getLon() - coords[2].longitude) *
-                                        (coords[2].latitude - coords[0].latitude) >= 0) {
-                            Log.d("inTriangle", point.getCoordinates().getLat() + " " +
-                                    point.getCoordinates().getLon());
+                Marker marker = visibleMarkers.get(point.getId());
+                if (isInTriangle(point)) {
+                    if (!marker.isInfoWindowShown())
+                        marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+                    else {
+                        if(point.isShown()) {
+                            marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+                            marker.showInfoWindow();
+                            point.setShown(false);
+                        }
+                    }
+                } else {
+                    if (!marker.isInfoWindowShown())
+                        marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
+                    else {
+                        if (!point.isShown()) {
+                            marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
+                            marker.showInfoWindow();
+                            point.setShown(true);
                         }
                     }
                 }
             }
         }
+    }
+
+    public static boolean isInTriangle(Point point) {
+        if (coords != null) {
+            if (((point.getCoordinates().getLat() - coords[0].latitude) * (coords[0].longitude - coords[1].longitude) -
+                    (point.getCoordinates().getLon() - coords[0].longitude) * (coords[0].latitude - coords[1].latitude) >= 0)) {
+                if ((point.getCoordinates().getLat() - coords[1].latitude) * (coords[1].longitude - coords[2].longitude) -
+                        (point.getCoordinates().getLon() - coords[1].longitude) * (coords[1].latitude - coords[2].latitude) >= 0) {
+                    if ((point.getCoordinates().getLat() - coords[2].latitude) * (coords[2].longitude - coords[0].longitude) -
+                            (point.getCoordinates().getLon() - coords[2].longitude) * (coords[2].latitude - coords[0].latitude) >= 0) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 }
