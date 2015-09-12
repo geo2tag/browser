@@ -100,6 +100,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     private static final int SHAKE_THRESHOLD = 20;
     private Triangle triangle;
     private static LatLng[] coords;
+    static int myD = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -175,6 +176,9 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                     getPoints();
                     addPointsToMap(points);
                     savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
+                    myD = Triangle.metersToEquatorPixels(latLng, METRES_IN_KILOMETRES * 2, map);
+                    if(myD != 0)
+                        Util.saveD(ctx, myD);
                     triangle = new Triangle(map, latLng, METRES_IN_KILOMETRES);
                 } else {
                     if (Triangle.groundOverlay != null)
@@ -196,10 +200,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         return visibleMarkers;
     }
 
-    public static URL makeURL(int number, int offset, int radius, float reserve, String dateTimeFrom, String dateTimeTo, double lon, double lat) {
+    public static URL makeURL(int number, int offset, int radius, float reserve, String date_from, String date_to, double lon, double lat) {
         try {
             return new URL("http://geomongo//instance/service/testservice/point?number=" + number + "&offset=" + offset + "&channel_ids=556721a52a2e7febd2744202&channel_ids=556721a52a2e7febd2744201" +
-                    "&radius=" + (radius * reserve) + "&geometry={\"type\":\"Point\",\"coordinates\":[" + lon + "," + lat + "]}&date_from=" + dateTimeFrom + "&date_to=" + dateTimeTo);
+                    "&radius=" + (radius * reserve) + "&geometry={\"type\":\"Point\",\"coordinates\":[" + lon + "," + lat + "]}&date_from=" + date_from + "&date_to=" + date_to);
         } catch (MalformedURLException e) {
             Toast.makeText(ctx, "Bad URL", Toast.LENGTH_SHORT).show();
             Log.d(LOG_TAG, "bad url");
@@ -210,7 +214,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
     private static void addPointsToMap(List<Point> points) {
         if ((map != null) && (points != null)) {
-            pointsOnMap = new ArrayList<>();
+//            pointsOnMap = new ArrayList<>();
             LatLngBounds bounds = map.getProjection().getVisibleRegion().latLngBounds;
             Location location = map.getMyLocation();
             if (location != null) {
@@ -225,7 +229,8 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                             visibleMarkers.put(point.getId(), myMarker);
                             photoHashMap.put(myMarker.getId(), point.getImage());
                             map.setInfoWindowAdapter(new MarkerInfoWindowAdapter(ctx));
-                            pointsOnMap.add(point);
+//                            pointsOnMap.add(point);
+                            Log.d("inTriangle", "in add" + pointsOnMap.size());
                         }
                     } else {
                         if (visibleMarkers.containsKey(point.getId())) {
@@ -244,8 +249,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         photoHashMap.clear();
         visibleMarkers.clear();
         map.clear();
+        pointsOnMap = null;
         addMyMarkers();
         coords = null;
+//        triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
     }
 
     public void setDates() {
@@ -498,8 +505,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                 }
                 if (newPoints.size() != 0) {
                     clearMap();
+                    triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
                     points = newPoints;
                     addPointsToMap(points);
+                    Log.d("inTriangle", "addPoints " + pointsOnMap.size());
                 }
                 setRefreshActionButtonState(false);
             }
@@ -597,39 +606,44 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
     public void addMyMarkers() {
         Point p;
-        if (pointsOnMap == null)
+        pointsOnMap = null;
+        if (pointsOnMap == null || pointsOnMap.size() == 0) {
             pointsOnMap = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
-            p = new Point(new JSONObject());
-            p.setId("id" + i);
-            p.setDescription("id" + i);
-            switch (i) {
-                case 0:
-                    p.setCoordinates(59.9978704, 30.3258796);
-                    break;
-                case 1:
-                    p.setCoordinates(59.9998704, 30.3108796);
-                    break;
-                case 2:
-                    p.setCoordinates(59.9848704, 30.3208796);
-                    break;
-                case 3:
-                    p.setCoordinates(59.9908704, 30.3308796);
-                    break;
+            for (int i = 0; i < 4; i++) {
+                p = new Point(new JSONObject());
+                p.setId("id" + i);
+                p.setDescription("id" + i);
+                switch (i) {
+                    case 0:
+                        p.setCoordinates(59.9978704, 30.3258796);
+                        break;
+                    case 1:
+                        p.setCoordinates(59.9998704, 30.3108796);
+                        break;
+                    case 2:
+                        p.setCoordinates(59.9848704, 30.3208796);
+                        break;
+                    case 3:
+                        p.setCoordinates(59.9908704, 30.3308796);
+                        break;
+                }
+                pointsOnMap.add(p);
+                MarkerOptions markerOptions = getMarkerForItem(p);
+                Marker myMarker = map.addMarker(markerOptions);
+                visibleMarkers.put(p.getId(), myMarker);
+                photoHashMap.put(myMarker.getId(), p.getImage());
+                map.setInfoWindowAdapter(new MarkerInfoWindowAdapter(ctx));
             }
-            pointsOnMap.add(p);
-            MarkerOptions markerOptions = getMarkerForItem(p);
-            Marker myMarker = map.addMarker(markerOptions);
-            visibleMarkers.put(p.getId(), myMarker);
-            photoHashMap.put(myMarker.getId(), p.getImage());
-            map.setInfoWindowAdapter(new MarkerInfoWindowAdapter(ctx));
         }
     }
 
     public static void showPointsOnTriangle() {
         if (coords != null) {
+            Log.d("inTriangle", "coords " + coords[0] + " " + coords[1] + " " + coords[2]);
+            Log.d("inTriangle", "" + pointsOnMap.size());
             for (Point point : pointsOnMap) {
                 Marker marker = visibleMarkers.get(point.getId());
+                Log.d("inTriangle", "" + isInTriangle(point));
                 if (isInTriangle(point)) {
                     if (!marker.isInfoWindowShown())
                         marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));

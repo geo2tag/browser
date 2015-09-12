@@ -8,6 +8,7 @@ import android.graphics.Point;
 import android.location.Location;
 import android.util.Log;
 
+import com.example.yana.map.util.Util;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.Projection;
 import com.google.android.gms.maps.model.BitmapDescriptor;
@@ -32,8 +33,11 @@ public class Triangle {
 //        double latitude = myLocation.getLatitude();
 //        double longitude = myLocation.getLongitude();
 //        LatLng latLng = new LatLng(latitude, longitude);
-        int d = metersToEquatorPixels(latLng, radiusM * 2, mMap);
+//        int d = metersToEquatorPixels(latLng, radiusM * 2, mMap);
+//        int d = MainActivity.myD;
+        int d = Util.getD(MainActivity.ctx);
         Log.d("inTriangle", "d = " + d);
+//        d += 100;
         if(d > 0) {
             bm = Bitmap.createBitmap(d, d, Bitmap.Config.ARGB_8888);
 
@@ -72,7 +76,7 @@ public class Triangle {
         }
     }
 
-    public int metersToEquatorPixels(LatLng base, float meters, GoogleMap map) {
+    public static int metersToEquatorPixels(LatLng base, float meters, GoogleMap map) {
         final double OFFSET_LON = 0.5d;
 
         Location baseLoc = new Location("");

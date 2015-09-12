@@ -32,13 +32,28 @@ public class Util {
     private static final String DATE_TIME_FROM = "dateTimeFrom";
     private static final String DATE_TIME_TO_SHARED_PREF = "dateTimeToSharedPreferences";
     private static final String DATE_TIME_TO = "dateTimeTo";
+    private static final String EQUATOR_PIXELS_SHARED_PREF = "equatorPixelsSharedPref";
+    private static final String EQUATOR_PIXELS = "equatorPixels";
 
+    public static int minD = 0;
     public static int minRadius = 1;
     public static long defaultDateFrom = 0;
     public static long defaultDateTo;
     public static String defaultJson = "";
     public static String defaultStringDateFrom = "01-01-1970";
     public static String defaultStringTimeFrom = "0:0";
+
+    public static void saveD(Context ctx, int d) {
+        SharedPreferences preferences = ctx.getSharedPreferences(EQUATOR_PIXELS_SHARED_PREF, Context.MODE_PRIVATE);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putInt(EQUATOR_PIXELS, d);
+        editor.apply();
+    }
+
+    public static int getD(Context ctx) {
+        SharedPreferences preferences = ctx.getSharedPreferences(EQUATOR_PIXELS_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getInt(EQUATOR_PIXELS, minD);
+    }
 
     public static void saveRadius(Context ctx, int radius) {
         SharedPreferences preferences = ctx.getSharedPreferences(RADIUS_SHARED_PREF, Context.MODE_PRIVATE);
