@@ -252,7 +252,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         pointsOnMap = null;
         addMyMarkers();
         coords = null;
-//        triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
     }
 
     public void setDates() {
@@ -301,10 +300,13 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             if (loc != null) {
                 savedLoc = new LatLng(loc.getLatitude(), loc.getLongitude());
             }
+            clearMap();
+            triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
         }
         WindowManager windowManager = ((WindowManager) getSystemService(Context.WINDOW_SERVICE));
         Display display = windowManager.getDefaultDisplay();
         rotation = display.getRotation();
+
     }
 
     private float getZoomLevel(int radius) {
@@ -341,15 +343,24 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         // Handle action bar item clicks here. The action bar will
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
-
-        switch (item.getItemId()) {
-            case R.id.action_settings:
-                startActivityForResult(new Intent(this, SettingsActivity.class), 1);
-                break;
-            case R.id.menuRefresh:
-                getPoints();
-                break;
+        if(myLocation != null) {
+            switch (item.getItemId()) {
+                case R.id.action_settings:
+                    startActivityForResult(new Intent(this, SettingsActivity.class), 1);
+                    break;
+                case R.id.menuRefresh:
+                    getPoints();
+                    if (myLocation != null && map.isMyLocationEnabled()) {
+                        LatLng latLng = new LatLng(myLocation.getLatitude(), myLocation.getLongitude());
+                        CameraUpdate center = CameraUpdateFactory
+                                .newLatLng(latLng);
+                        map.animateCamera(center);
+                        map.moveCamera(center);
+                    }
+                    break;
+            }
         }
+
         //noinspection SimplifiableIfStatement
         return super.onOptionsItemSelected(item);
     }
@@ -508,7 +519,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                     triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
                     points = newPoints;
                     addPointsToMap(points);
-                    Log.d("inTriangle", "addPoints " + pointsOnMap.size());
                 }
                 setRefreshActionButtonState(false);
             }
@@ -585,29 +595,41 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         long curTime = System.currentTimeMillis();
 
         if ((curTime - lastUpdate) > 100) {
-            long diffTime = (curTime - lastUpdate);
             lastUpdate = curTime;
 
-            float speed = Math.abs(valuesAccel[0] + valuesAccel[1] + valuesAccel[2] - last_x - last_y - last_z) / diffTime * 10000;
-            Log.d("speed", "" + speed);
-
-            if (speed > SHAKE_THRESHOLD) {
                 if (triangle != null) {
-                    triangle.updateTriangle((float) Math.toDegrees(valuesResult[0]));
+                    float value = getAverage((float) Math.toDegrees(valuesResult[0]));
+                    triangle.updateTriangle(value);
                     coords = triangle.getCoords();
                     showPointsOnTriangle();
                 }
-            }
             last_x = valuesAccel[0];
             last_y = valuesAccel[1];
             last_z = valuesAccel[2];
         }
     }
+    int window = 20;
+    float sum =  0;
+    float [] arr = new float[window];
+    int index = 0;
+
+    public float getAverage(float value) {
+        float result = 0;
+        sum -= arr[index];
+        arr[index] = value;
+        sum += arr[index];
+        index++;
+        if(index >= window) {
+            index = 0;
+        }
+        result = sum / window;
+        return result;
+    }
 
     public void addMyMarkers() {
         Point p;
         pointsOnMap = null;
-        if (pointsOnMap == null || pointsOnMap.size() == 0) {
+        if (pointsOnMap == null) {
             pointsOnMap = new ArrayList<>();
             for (int i = 0; i < 4; i++) {
                 p = new Point(new JSONObject());
@@ -640,10 +662,8 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     public static void showPointsOnTriangle() {
         if (coords != null) {
             Log.d("inTriangle", "coords " + coords[0] + " " + coords[1] + " " + coords[2]);
-            Log.d("inTriangle", "" + pointsOnMap.size());
             for (Point point : pointsOnMap) {
                 Marker marker = visibleMarkers.get(point.getId());
-                Log.d("inTriangle", "" + isInTriangle(point));
                 if (isInTriangle(point)) {
                     if (!marker.isInfoWindowShown())
                         marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));

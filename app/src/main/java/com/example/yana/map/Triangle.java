@@ -6,7 +6,6 @@ import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.Point;
 import android.location.Location;
-import android.util.Log;
 
 import com.example.yana.map.util.Util;
 import com.google.android.gms.maps.GoogleMap;
@@ -16,7 +15,6 @@ import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.GroundOverlay;
 import com.google.android.gms.maps.model.GroundOverlayOptions;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.MarkerOptions;
 
 /**
  * Created by Yana on 24.08.2015.
@@ -28,16 +26,7 @@ public class Triangle {
 
     Triangle(GoogleMap map, LatLng latLng, int radiusM) {
         mMap = map;
-//        Location myLocation = mMap.getMyLocation();
-//        Log.d("location", "" + myLocation);
-//        double latitude = myLocation.getLatitude();
-//        double longitude = myLocation.getLongitude();
-//        LatLng latLng = new LatLng(latitude, longitude);
-//        int d = metersToEquatorPixels(latLng, radiusM * 2, mMap);
-//        int d = MainActivity.myD;
         int d = Util.getD(MainActivity.ctx);
-        Log.d("inTriangle", "d = " + d);
-//        d += 100;
         if(d > 0) {
             bm = Bitmap.createBitmap(d, d, Bitmap.Config.ARGB_8888);
 
