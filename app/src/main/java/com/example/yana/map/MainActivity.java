@@ -59,12 +59,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.TimeZone;
 
+import static java.lang.Math.*;
+
 public class MainActivity extends ActionBarActivity implements OnMapReadyCallback, LocationListener {
 
     private static final long MIN_TIME = 10;
     private static final float MIN_DISTANCE = 100;
     static final int METRES_IN_KILOMETRES = 1000;
-    private static final int MAX_TRY = 2;
     private static final String LOG_TAG = "myLogs";
     static final int NUMBER = 50;
     static final float RESERVE = 1.5f;
@@ -74,30 +75,21 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     static Location myLocation;
     private static LatLng latLng;
     private static int offset = 0;
-    private SupportMapFragment mapFragment;
     private LocationManager locationManager;
-    private static URL url;
     private LatLng savedLoc;
-    private static Boolean available = false;
     private static List<Point> points;
     private static List<Point> pointsOnMap;
     private static Map<String, Marker> visibleMarkers;
     public static Map<String, String> photoHashMap;
     private static String dateTo;
     private static String dateFrom;
-    private static String resultJson = "";
-    private static int tryConnect = 0;
     private static List<Point> newPoints;
     private AsyncTask myTask;
-    private static AsyncTask innerMyTask;
     private static Menu myMenu;
     private SensorManager sensorManager;
     private Sensor sensorAccel;
     private Sensor sensorMagnet;
     static int rotation;
-    private long lastUpdate = 0;
-    private float last_x, last_y, last_z;
-    private static final int SHAKE_THRESHOLD = 20;
     private Triangle triangle;
     private static LatLng[] coords;
     static int myD = 0;
@@ -110,24 +102,22 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         sensorAccel = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         sensorMagnet = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
-//        sensorOrient = sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION);
 
         ctx = this;
         visibleMarkers = new HashMap<>();
         photoHashMap = new HashMap<>();
-
-        mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
+        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
         mapFragment.setRetainInstance(true);
+        mapFragment.getMapAsync(this);
         map = mapFragment.getMap();
         if (map == null) {
             finish();
             return;
         }
+        Log.d("marker", "map " + map);
+
         addMyMarkers();
-        if (getLastCustomNonConfigurationInstance() != null) {
-            visibleMarkers = (Map) getLastCustomNonConfigurationInstance();
-            Log.d("addM", "saved " + visibleMarkers);
-        }
 
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         Criteria criteria = new Criteria();
@@ -139,8 +129,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             locationManager.removeUpdates(this);
         }
 
-        TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
-        mapFragment.getMapAsync(this);
         map.setOnMarkerClickListener(new OnMarkerClickListener() {
             @Override
             public boolean onMarkerClick(final Marker marker) {
@@ -151,10 +139,8 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                     public void run() {
                         if (marker.isInfoWindowShown())
                             handler.removeCallbacks(this);
-                        {
-                            marker.hideInfoWindow();
-                            marker.showInfoWindow();
-                        }
+                        marker.hideInfoWindow();
+                        marker.showInfoWindow();
                     }
                 });
                 return true;
@@ -169,15 +155,12 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
                 if (savedLoc == null) {
                     savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
-                    CameraUpdate center = CameraUpdateFactory
-                            .newLatLng(latLng);
+                    CameraUpdate center = CameraUpdateFactory.newLatLng(latLng);
                     map.animateCamera(center);
                     map.moveCamera(center);
                     getPoints();
-                    addPointsToMap(points);
-                    savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
                     myD = Triangle.metersToEquatorPixels(latLng, METRES_IN_KILOMETRES * 2, map);
-                    if(myD != 0)
+                    if (myD != 0)
                         Util.saveD(ctx, myD);
                     triangle = new Triangle(map, latLng, METRES_IN_KILOMETRES);
                 } else {
@@ -187,17 +170,11 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                     double distance = CalculationDistance(coordinate, savedLoc);
                     if (distance >= (Util.getRadius(ctx) * 0.5)) {
                         getPoints();
-                        savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
                     }
-                    addPointsToMap(points);
+                    savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
                 }
             }
         });
-    }
-
-    @Override
-    public Map onRetainCustomNonConfigurationInstance() {
-        return visibleMarkers;
     }
 
     public static URL makeURL(int number, int offset, int radius, float reserve, String date_from, String date_to, double lon, double lat) {
@@ -219,10 +196,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             Location location = map.getMyLocation();
             if (location != null) {
                 for (final Point point : points) {
-                    if (bounds.contains(new LatLng(point.getCoordinates().getLat(), point.getCoordinates().getLon()))
-                            && (CalculationDistance(point.getCoordinates(), new LatLng(location.getLatitude(), location.getLongitude())) <= Util.getRadius(ctx))
+//                    Log.d("marker", "bounds " + bounds.contains(new LatLng(point.getCoordinates().getLat(), point.getCoordinates().getLon())));
+//                    if (bounds.contains(new LatLng(point.getCoordinates().getLat(), point.getCoordinates().getLon()))
+                    if ((CalculationDistance(point.getCoordinates(), new LatLng(location.getLatitude(), location.getLongitude())) <= Util.getRadius(ctx))
                             && ((point.getDate() >= Util.getDateTimeFrom(ctx)) && (point.getDate() <= Util.getDateTimeTo(ctx)))) {
-
                         if (!visibleMarkers.containsKey(point.getId())) {
                             MarkerOptions markerOptions = getMarkerForItem(point);
                             Marker myMarker = map.addMarker(markerOptions);
@@ -230,7 +207,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                             photoHashMap.put(myMarker.getId(), point.getImage());
                             map.setInfoWindowAdapter(new MarkerInfoWindowAdapter(ctx));
 //                            pointsOnMap.add(point);
-                            Log.d("inTriangle", "in add" + pointsOnMap.size());
                         }
                     } else {
                         if (visibleMarkers.containsKey(point.getId())) {
@@ -292,41 +268,41 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
         if (myLocation != null && map.isMyLocationEnabled()) {
             LatLng latLng = new LatLng(myLocation.getLatitude(), myLocation.getLongitude());
-            CameraUpdate center = CameraUpdateFactory
-                    .newLatLng(latLng);
-            map.animateCamera(center);
-            map.moveCamera(center);
             Location loc = map.getMyLocation();
             if (loc != null) {
                 savedLoc = new LatLng(loc.getLatitude(), loc.getLongitude());
             }
+            CameraUpdate center = CameraUpdateFactory.newLatLng(latLng);
+            map.animateCamera(center);
+            map.moveCamera(center);
             clearMap();
             triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
         }
-        WindowManager windowManager = ((WindowManager) getSystemService(Context.WINDOW_SERVICE));
+
+        addPointsToMap(points);
+        WindowManager windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
         Display display = windowManager.getDefaultDisplay();
         rotation = display.getRotation();
-
     }
 
     private float getZoomLevel(int radius) {
         double scale = radius / 500;
-        float zoomLevel = (float) (16 - Math.log(scale) / Math.log(2));
+        float zoomLevel = (float) (16 - log(scale) / log(2));
         return --zoomLevel;
     }
 
     @Override
     protected void onPause() {
         super.onPause();
+        if (visibleMarkers != null) {
+            visibleMarkers.clear();
+            photoHashMap.clear();
+        }
         sensorManager.unregisterListener(listener);
         locationManager.removeUpdates(this);
         if (myTask != null) {
             myTask.cancel(false);
             Log.d(LOG_TAG, "cancel myTask");
-        }
-        if (innerMyTask != null) {
-            innerMyTask.cancel(false);
-            Log.d(LOG_TAG, "cancel innerMyTask");
         }
     }
 
@@ -343,7 +319,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         // Handle action bar item clicks here. The action bar will
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
-        if(myLocation != null) {
+        if (myLocation != null) {
             switch (item.getItemId()) {
                 case R.id.action_settings:
                     startActivityForResult(new Intent(this, SettingsActivity.class), 1);
@@ -351,9 +327,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                 case R.id.menuRefresh:
                     getPoints();
                     if (myLocation != null && map.isMyLocationEnabled()) {
+                        CameraUpdate z = CameraUpdateFactory.zoomTo(getZoomLevel(Util.getRadius(this) * METRES_IN_KILOMETRES));
+                        map.moveCamera(z);
                         LatLng latLng = new LatLng(myLocation.getLatitude(), myLocation.getLongitude());
-                        CameraUpdate center = CameraUpdateFactory
-                                .newLatLng(latLng);
+                        CameraUpdate center = CameraUpdateFactory.newLatLng(latLng);
                         map.animateCamera(center);
                         map.moveCamera(center);
                     }
@@ -420,22 +397,18 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             myTask.cancel(false);
             Log.d(LOG_TAG, "cancel myTask");
         }
-        if (innerMyTask != null) {
-            innerMyTask.cancel(false);
-            Log.d(LOG_TAG, "cancel innerMyTask");
-        }
         setDates();
-        resultJson = "";
         offset = 0;
         newPoints = new ArrayList<>();
-        url = makeURL(NUMBER, offset, Util.getRadius(ctx), RESERVE,
-                dateFrom, dateTo, myLocation.getLongitude(), myLocation.getLatitude());
         myTask = (new ParseTask()).execute();
     }
 
     public class ParseTask extends AsyncTask<Void, Void, String> {
         private HttpURLConnection urlConnection = null;
         private BufferedReader reader = null;
+        private Boolean available = false;
+
+        String returnJson = "";
 
         @Override
         protected String doInBackground(Void... params) {
@@ -446,89 +419,94 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                 System.setProperty("http.keepAlive", "false");
             }
 
-            try {
-                urlConnection = (HttpURLConnection) url.openConnection();
-                urlConnection.setRequestMethod("GET");
-                urlConnection.setConnectTimeout(5000);
-                urlConnection.connect();
+            String resultJson;
+            do {
 
-                int responseCode = urlConnection.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
+                URL url = makeURL(NUMBER, offset, Util.getRadius(ctx), RESERVE,
+                        dateFrom, dateTo, myLocation.getLongitude(), myLocation.getLatitude());
+                resultJson = null;
 
-                    available = true;
-                    InputStream inputStream = urlConnection.getInputStream();
+                if (url != null) {
+                    try {
+                        urlConnection = (HttpURLConnection) url.openConnection();
+                        urlConnection.setRequestMethod("GET");
+                        urlConnection.setConnectTimeout(5000);
+                        urlConnection.connect();
 
-                    StringBuffer buffer = new StringBuffer();
+                        int responseCode = urlConnection.getResponseCode();
+                        if (responseCode == HttpURLConnection.HTTP_OK) {
 
-                    reader = new BufferedReader(new InputStreamReader(inputStream));
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        buffer.append(line);
+                            available = true;
+                            InputStream inputStream = urlConnection.getInputStream();
+
+                            StringBuffer buffer = new StringBuffer();
+
+                            reader = new BufferedReader(new InputStreamReader(inputStream));
+                            String line;
+                            while ((line = reader.readLine()) != null) {
+                                buffer.append(line);
+                            }
+
+                            resultJson = buffer.toString();
+                        }
+                    } catch (MalformedURLException e) {
+                        e.printStackTrace();
+                        Log.i(LOG_TAG, "malformed url");
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                        Log.i(LOG_TAG, "ioexception");
+                        available = false;
+                    } finally {
+                        if (urlConnection != null) {
+                            Log.i(LOG_TAG, "deleting connection");
+                            urlConnection.disconnect();
+                        }
                     }
+                }
 
-                    resultJson = buffer.toString();
+                if (available) {
+                    Log.i(LOG_TAG, "connection iteration, offset = " + offset);
+                    offset += NUMBER;
+                    returnJson += resultJson;
                 }
-            } catch (MalformedURLException e) {
+            } while (null != resultJson && !resultJson.equals("") &&
+                    !resultJson.equals("[]"));
+
+            JSONArray jsonPoints;
+            try {
+                Log.i(LOG_TAG, "parsing " + returnJson);
+                jsonPoints = new JSONArray(returnJson);
+                for (int i = 0; i < jsonPoints.length(); i++) {
+                    JSONObject point = jsonPoints.getJSONObject(i);
+                    Point p = new Point(point);
+                    newPoints.add(p);
+                }
+            } catch (JSONException e) {
                 e.printStackTrace();
-            } catch (IOException e) {
-                available = false;
-            } finally {
-                if (urlConnection != null) {
-                    urlConnection.disconnect();
-                }
             }
-            return resultJson;
+            Log.i(LOG_TAG, "background work is finished");
+            return returnJson;
         }
 
         @Override
         protected void onPostExecute(String strJson) {
             super.onPostExecute(strJson);
-            JSONArray jsonPoints = null;
-
-            if (available) {
-                tryConnect = 0;
-                try {
-                    jsonPoints = new JSONArray(strJson);
-                    for (int i = 0; i < jsonPoints.length(); i++) {
-                        JSONObject point = jsonPoints.getJSONObject(i);
-                        Point p = new Point(point);
-                        newPoints.add(p);
-                    }
-                } catch (JSONException e) {
-                    e.printStackTrace();
-                }
-            } else {
-                Log.d(LOG_TAG, "Service unavailable");
-                tryConnect++;
+            if (!available) {
+                Toast.makeText(ctx, "Server unavailable", Toast.LENGTH_SHORT).show();
             }
-
-            if (!strJson.equals("[]") && (tryConnect < MAX_TRY)) {
-                if (available) {
-                    offset += NUMBER;
-                }
-                url = makeURL(NUMBER, offset, Util.getRadius(ctx), RESERVE, dateFrom, dateTo,
-                        myLocation.getLongitude(), myLocation.getLatitude());
-                innerMyTask = (new ParseTask()).execute();
-            } else {
-                if (tryConnect >= MAX_TRY) {
-                    tryConnect = 0;
-                    Toast.makeText(ctx, "Check your internet connection", Toast.LENGTH_SHORT).show();
-                }
-                if (newPoints.size() != 0) {
-                    clearMap();
-                    triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
-                    points = newPoints;
-                    addPointsToMap(points);
-                }
-                setRefreshActionButtonState(false);
+            if (newPoints.size() != 0) {
+                clearMap();
+                triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
+                points = newPoints;
+                addPointsToMap(points);
             }
+            setRefreshActionButtonState(false);
         }
 
         @Override
         protected void onCancelled(String result) {
             Log.d(LOG_TAG, "onCancelled start");
             super.onCancelled(result);
-            tryConnect = 0;
             Log.d(LOG_TAG, "onCancelled finish");
         }
 
@@ -544,14 +522,10 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         public void onSensorChanged(SensorEvent event) {
             switch (event.sensor.getType()) {
                 case Sensor.TYPE_ACCELEROMETER:
-                    for (int i = 0; i < 3; i++) {
-                        valuesAccel[i] = event.values[i];
-                    }
+                    System.arraycopy(event.values, 0, valuesAccel, 0, 3);
                     break;
                 case Sensor.TYPE_MAGNETIC_FIELD:
-                    for (int i = 0; i < 3; i++) {
-                        valuesMagnet[i] = event.values[i];
-                    }
+                    System.arraycopy(event.values, 0, valuesMagnet, 0, 3);
                     break;
             }
             getActualDeviceOrientation();
@@ -563,11 +537,12 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         }
     };
 
-    float[] inR = new float[16];
-    float[] outR = new float[16];
+    float[] inR = new float[9];
+    float[] outR = new float[9];
     float[] valuesAccel = new float[3];
     float[] valuesMagnet = new float[3];
     float[] valuesResult = new float[3];
+    private long lastUpdate = 0;
 
     void getActualDeviceOrientation() {
         SensorManager.getRotationMatrix(inR, null, valuesAccel, valuesMagnet);
@@ -596,30 +571,46 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
         if ((curTime - lastUpdate) > 100) {
             lastUpdate = curTime;
+            if (triangle != null) {
+//                    Log.d(LOG_TAG, "sum = " + sum);
+//                    Log.d(LOG_TAG, " RADIANS [0] " + (valuesResult[0])
+//                            + " [1] " + (valuesResult[1])
+//                            + " [2] " + (valuesResult[2]));
+//                    Log.d(LOG_TAG, "degrees [0] " + (float) toDegrees(valuesResult[0])
+//                    + "degrees [1] " + (float) toDegrees(valuesResult[1])
+//                    + "degrees [2] " + (float) toDegrees(valuesResult[2]));
+//                    float all = (float) (toDegrees(valuesResult[0]) + toDegrees(valuesResult[1]) + toDegrees(valuesResult[2]));
+                float value = getAverage((float) toDegrees(valuesResult[0]));
+//                    Log.d(LOG_TAG, "all = " + all);
+//                    if(toDegrees(valuesResult[0]) < 0) {
+//                        value = getAverage(-all);
+//                    }
 
-                if (triangle != null) {
-                    float value = getAverage((float) Math.toDegrees(valuesResult[0]));
-                    triangle.updateTriangle(value);
-                    coords = triangle.getCoords();
-                    showPointsOnTriangle();
-                }
-            last_x = valuesAccel[0];
-            last_y = valuesAccel[1];
-            last_z = valuesAccel[2];
+//                    if(toDegrees(valuesResult[0]) < 0) {
+//                        value = -value;
+//                    }
+//                if (value < 0)
+//                    value = 360 + value;
+//                    Log.d(LOG_TAG, "value to rotate " + value);
+                triangle.updateTriangle(value);
+                coords = triangle.getCoords();
+                showPointsOnTriangle();
+            }
         }
     }
-    int window = 20;
-    float sum =  0;
-    float [] arr = new float[window];
+
+    int window = 10;
+    float sum = 0;
+    float[] arr = new float[window];
     int index = 0;
 
     public float getAverage(float value) {
-        float result = 0;
+        float result;
         sum -= arr[index];
         arr[index] = value;
         sum += arr[index];
         index++;
-        if(index >= window) {
+        if (index >= window) {
             index = 0;
         }
         result = sum / window;
@@ -628,60 +619,58 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
     public void addMyMarkers() {
         Point p;
-        pointsOnMap = null;
-        if (pointsOnMap == null) {
-            pointsOnMap = new ArrayList<>();
-            for (int i = 0; i < 4; i++) {
-                p = new Point(new JSONObject());
-                p.setId("id" + i);
-                p.setDescription("id" + i);
-                switch (i) {
-                    case 0:
-                        p.setCoordinates(59.9978704, 30.3258796);
-                        break;
-                    case 1:
-                        p.setCoordinates(59.9998704, 30.3108796);
-                        break;
-                    case 2:
-                        p.setCoordinates(59.9848704, 30.3208796);
-                        break;
-                    case 3:
-                        p.setCoordinates(59.9908704, 30.3308796);
-                        break;
-                }
-                pointsOnMap.add(p);
-                MarkerOptions markerOptions = getMarkerForItem(p);
-                Marker myMarker = map.addMarker(markerOptions);
-                visibleMarkers.put(p.getId(), myMarker);
-                photoHashMap.put(myMarker.getId(), p.getImage());
-                map.setInfoWindowAdapter(new MarkerInfoWindowAdapter(ctx));
+        pointsOnMap = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            p = new Point(new JSONObject());
+            p.setId("id" + i);
+            p.setDescription("id" + i);
+            switch (i) {
+                case 0:
+                    p.setCoordinates(59.9978704, 30.3258796);
+                    break;
+                case 1:
+                    p.setCoordinates(59.9998704, 30.3108796);
+                    break;
+                case 2:
+                    p.setCoordinates(59.9848704, 30.3208796);
+                    break;
+                case 3:
+                    p.setCoordinates(59.9908704, 30.3308796);
+                    break;
             }
+            pointsOnMap.add(p);
+            MarkerOptions markerOptions = getMarkerForItem(p);
+            Marker myMarker = map.addMarker(markerOptions);
+            visibleMarkers.put(p.getId(), myMarker);
+            photoHashMap.put(myMarker.getId(), p.getImage());
+            map.setInfoWindowAdapter(new MarkerInfoWindowAdapter(ctx));
         }
     }
 
     public static void showPointsOnTriangle() {
         if (coords != null) {
-            Log.d("inTriangle", "coords " + coords[0] + " " + coords[1] + " " + coords[2]);
             for (Point point : pointsOnMap) {
                 Marker marker = visibleMarkers.get(point.getId());
-                if (isInTriangle(point)) {
-                    if (!marker.isInfoWindowShown())
-                        marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
-                    else {
-                        if(point.isShown()) {
+                if(marker != null) {
+                    if (isInTriangle(point)) {
+                        if (!marker.isInfoWindowShown())
                             marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
-                            marker.showInfoWindow();
-                            point.setShown(false);
+                        else {
+                            if (point.isShown()) {
+                                marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));
+                                marker.showInfoWindow();
+                                point.setShown(false);
+                            }
                         }
-                    }
-                } else {
-                    if (!marker.isInfoWindowShown())
-                        marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
-                    else {
-                        if (!point.isShown()) {
+                    } else {
+                        if (!marker.isInfoWindowShown())
                             marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
-                            marker.showInfoWindow();
-                            point.setShown(true);
+                        else {
+                            if (!point.isShown()) {
+                                marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
+                                marker.showInfoWindow();
+                                point.setShown(true);
+                            }
                         }
                     }
                 }

@@ -13,15 +13,10 @@ import java.util.TimeZone;
  */
 public class Point {
 
-    private JSONObject idObject;
     private String id;
-    private JSONObject location;
-    private JSONArray coordinatesArray;
     private Coordinate coordinates;
-    private JSONObject dateObject;
     private long date;
     private String dateText;
-    private JSONObject json;
     private String image;
     private String description;
     private boolean isShown = true;
@@ -36,19 +31,19 @@ public class Point {
 
     public Point(JSONObject point){
         try {
-            idObject = point.getJSONObject("_id");
+            JSONObject idObject = point.getJSONObject("_id");
             id = idObject.getString("$oid");
-            location = point.getJSONObject("location");
-            coordinatesArray = location.getJSONArray("coordinates");
+            JSONObject location = point.getJSONObject("location");
+            JSONArray coordinatesArray = location.getJSONArray("coordinates");
             coordinates = new Coordinate();
             coordinates.setLon(coordinatesArray.getDouble(0));
             coordinates.setLat(coordinatesArray.getDouble(1));
-            dateObject = point.getJSONObject("date");
+            JSONObject dateObject = point.getJSONObject("date");
             date = (long) dateObject.get("$date");
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm");
             sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
             dateText = sdf.format(new Date(date));
-            json = point.getJSONObject("json");
+            JSONObject json = point.getJSONObject("json");
             image = json.getString("image_url");
             description = json.getString("description");
         } catch (JSONException e) {
