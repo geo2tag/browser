@@ -1,7 +1,9 @@
 package com.example.yana.map;
 
+import android.app.Dialog;
 import android.content.Context;
 import android.content.Intent;
+import android.hardware.GeomagneticField;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -23,6 +25,7 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.Surface;
 import android.view.WindowManager;
+import android.webkit.CookieManager;
 import android.widget.Toast;
 
 import com.example.yana.map.model.Coordinate;
@@ -33,8 +36,8 @@ import com.google.android.gms.maps.CameraUpdate;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.GoogleMap.OnMarkerClickListener;
+import com.google.android.gms.maps.MapFragment;
 import com.google.android.gms.maps.OnMapReadyCallback;
-import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
@@ -69,6 +72,9 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     private static final String LOG_TAG = "myLogs";
     static final int NUMBER = 50;
     static final float RESERVE = 1.5f;
+    static String CLIENT_ID = "560161143796-0dh7u04hdqmustsv4hu4usvk8a6eqnmc.apps.googleusercontent.com";
+    static String CLIENT_SECRET = "vKycLSmXidvxlg-HslNR8awW";
+    static String OATH_URL = "http://demo.geo2tag.org/instance/login";
 
     private static GoogleMap map;
     static Context ctx;
@@ -84,103 +90,73 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     private static String dateTo;
     private static String dateFrom;
     private static List<Point> newPoints;
-    private AsyncTask myTask;
+    private static AsyncTask myTask;
     private static Menu myMenu;
     private SensorManager sensorManager;
     private Sensor sensorAccel;
     private Sensor sensorMagnet;
     static int rotation;
-    private Triangle triangle;
+    private static Triangle triangle;
     private static LatLng[] coords;
     static int myD = 0;
+    static String cookie = "";
+    static String authCode;
+
+    private static final int T_CONST = METRES_IN_KILOMETRES;
+    static Boolean success = false;
+    static Dialog auth_dialog;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.main);
-
+        ctx = this;
         sensorManager = (SensorManager) getSystemService(SENSOR_SERVICE);
         sensorAccel = sensorManager.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
         sensorMagnet = sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
 
-        ctx = this;
+        auth_dialog = new Dialog(MainActivity.this);
+
+        Object saved = getLastCustomNonConfigurationInstance();
+        if (saved != null) {
+            success = (Boolean) saved;
+        }
+
+        if(!success) {
+            Authorization.execute(auth_dialog);
+        }
+
         visibleMarkers = new HashMap<>();
         photoHashMap = new HashMap<>();
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"));
-        SupportMapFragment mapFragment = (SupportMapFragment) getSupportFragmentManager().findFragmentById(R.id.map);
+        MapFragment mapFragment = (MapFragment) getFragmentManager().findFragmentById(R.id.map);
         mapFragment.setRetainInstance(true);
         mapFragment.getMapAsync(this);
-        map = mapFragment.getMap();
-        if (map == null) {
-            finish();
-            return;
-        }
-        Log.d("marker", "map " + map);
+    }
 
-        addMyMarkers();
+    public Object onRetainCustomNonConfigurationInstance() {
+        return success;
+    }
 
-        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
-        Criteria criteria = new Criteria();
-        String provider = locationManager.getBestProvider(criteria, true);
-        Location lastKnownLocation = locationManager.getLastKnownLocation(provider);
-
-        if (lastKnownLocation != null) {
-            new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
-            locationManager.removeUpdates(this);
-        }
-
-        map.setOnMarkerClickListener(new OnMarkerClickListener() {
-            @Override
-            public boolean onMarkerClick(final Marker marker) {
-                marker.showInfoWindow();
-                final Handler handler = new Handler();
-                handler.post(new Runnable() {
-                    @Override
-                    public void run() {
-                        if (marker.isInfoWindowShown())
-                            handler.removeCallbacks(this);
-                        marker.hideInfoWindow();
-                        marker.showInfoWindow();
-                    }
-                });
-                return true;
-            }
-        });
-
-        map.setOnMyLocationChangeListener(new GoogleMap.OnMyLocationChangeListener() {
-            @Override
-            public void onMyLocationChange(Location location) {
-                latLng = new LatLng(location.getLatitude(), location.getLongitude());
-                myLocation = location;
-
-                if (savedLoc == null) {
-                    savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
-                    CameraUpdate center = CameraUpdateFactory.newLatLng(latLng);
-                    map.animateCamera(center);
-                    map.moveCamera(center);
-                    getPoints();
-                    myD = Triangle.metersToEquatorPixels(latLng, METRES_IN_KILOMETRES * 2, map);
-                    if (myD != 0)
-                        Util.saveD(ctx, myD);
-                    triangle = new Triangle(map, latLng, METRES_IN_KILOMETRES);
-                } else {
-                    if (Triangle.groundOverlay != null)
-                        Triangle.groundOverlay.setPosition(latLng);
-                    Coordinate coordinate = new Coordinate(location.getLongitude(), location.getLatitude());
-                    double distance = CalculationDistance(coordinate, savedLoc);
-                    if (distance >= (Util.getRadius(ctx) * 0.5)) {
-                        getPoints();
-                    }
-                    savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
-                }
-            }
-        });
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        auth_dialog.dismiss();
     }
 
     public static URL makeURL(int number, int offset, int radius, float reserve, String date_from, String date_to, double lon, double lat) {
         try {
-            return new URL("http://geomongo//instance/service/testservice/point?number=" + number + "&offset=" + offset + "&channel_ids=556721a52a2e7febd2744202&channel_ids=556721a52a2e7febd2744201" +
-                    "&radius=" + (radius * reserve) + "&geometry={\"type\":\"Point\",\"coordinates\":[" + lon + "," + lat + "]}&date_from=" + date_from + "&date_to=" + date_to);
+
+            //url for local service
+//            return new URL("http://geomongo//instance/service/testservice/point?number=" + number + "&offset=" + offset + "&channel_ids=556721a52a2e7febd2744202&channel_ids=556721a52a2e7febd2744201" +
+//                    "&radius=" + (radius * reserve) + "&geometry={\"type\":\"Point\",\"coordinates\":[" + lon + "," + lat + "]}&date_from=" + date_from + "&date_to=" + date_to);
+
+            //url for test service demo.geo2tag.org
+            return new URL("http://demo.geo2tag.org//instance/service/testservice/point?" +
+                    "bc_from=false&bc_to=false&number=" + number + "&offset=" + offset +
+                    "&channel_ids=556721a52a2e7febd2744202&channel_ids=556721a52a2e7febd2744201" +
+                    "&radius=" + (radius * reserve) + "&geometry={\"type\":\"Point\",\"coordinates\":[" +
+                    lon + "," + lat + "]}&date_from=" + date_from + ":00.00&date_to=" + date_to + ":00.00");
         } catch (MalformedURLException e) {
             Toast.makeText(ctx, "Bad URL", Toast.LENGTH_SHORT).show();
             Log.d(LOG_TAG, "bad url");
@@ -206,7 +182,6 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                             visibleMarkers.put(point.getId(), myMarker);
                             photoHashMap.put(myMarker.getId(), point.getImage());
                             map.setInfoWindowAdapter(new MarkerInfoWindowAdapter(ctx));
-//                            pointsOnMap.add(point);
                         }
                     } else {
                         if (visibleMarkers.containsKey(point.getId())) {
@@ -221,7 +196,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         }
     }
 
-    public void clearMap() {
+    public static void clearMap() {
         photoHashMap.clear();
         visibleMarkers.clear();
         map.clear();
@@ -230,7 +205,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         coords = null;
     }
 
-    public void setDates() {
+    public static void setDates() {
         dateFrom = "" + DateFormat.format("yyyy-MM-dd", new Date(Util.getDateTimeFrom(ctx))) +
                 "T" + DateFormat.format("HH:mm", new Date(Util.getDateTimeFrom(ctx)));
         dateTo = "" + DateFormat.format("yyyy-MM-dd", new Date(Util.getDateTimeTo(ctx))) +
@@ -256,6 +231,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     @Override
     protected void onResume() {
         super.onResume();
+
         locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, MIN_TIME, MIN_DISTANCE, this);
         locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, MIN_TIME, MIN_DISTANCE, this);
@@ -263,23 +239,25 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         sensorManager.registerListener(listener, sensorAccel, SensorManager.SENSOR_DELAY_NORMAL);
         sensorManager.registerListener(listener, sensorMagnet, SensorManager.SENSOR_DELAY_NORMAL);
 
-        CameraUpdate z = CameraUpdateFactory.zoomTo(getZoomLevel(Util.getRadius(this) * METRES_IN_KILOMETRES));
-        map.moveCamera(z);
+        if (map != null) {
+            CameraUpdate z = CameraUpdateFactory.zoomTo(getZoomLevel(Util.getRadius(this) * METRES_IN_KILOMETRES));
+            map.moveCamera(z);
 
-        if (myLocation != null && map.isMyLocationEnabled()) {
-            LatLng latLng = new LatLng(myLocation.getLatitude(), myLocation.getLongitude());
-            Location loc = map.getMyLocation();
-            if (loc != null) {
-                savedLoc = new LatLng(loc.getLatitude(), loc.getLongitude());
+            if (myLocation != null && map.isMyLocationEnabled()) {
+                LatLng latLng = new LatLng(myLocation.getLatitude(), myLocation.getLongitude());
+                Location loc = map.getMyLocation();
+                if (loc != null) {
+                    savedLoc = new LatLng(loc.getLatitude(), loc.getLongitude());
+                }
+                CameraUpdate center = CameraUpdateFactory.newLatLng(latLng);
+                map.animateCamera(center);
+                map.moveCamera(center);
+                clearMap();
+                triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
             }
-            CameraUpdate center = CameraUpdateFactory.newLatLng(latLng);
-            map.animateCamera(center);
-            map.moveCamera(center);
-            clearMap();
-            triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
+            addPointsToMap(points);
         }
 
-        addPointsToMap(points);
         WindowManager windowManager = (WindowManager) getSystemService(Context.WINDOW_SERVICE);
         Display display = windowManager.getDefaultDisplay();
         rotation = display.getRotation();
@@ -364,11 +342,85 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         getPoints();
         clearMap();
-        triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
+        triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), T_CONST);
     }
 
     @Override
     public void onMapReady(GoogleMap googleMap) {
+        map = googleMap;
+        if (map == null) {
+            finish();
+            return;
+        }
+        CameraUpdate z = CameraUpdateFactory.zoomTo(getZoomLevel(Util.getRadius(this) * METRES_IN_KILOMETRES));
+        map.moveCamera(z);
+        addMyMarkers();
+
+        locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        Criteria criteria = new Criteria();
+        String provider = locationManager.getBestProvider(criteria, true);
+        Location lastKnownLocation = locationManager.getLastKnownLocation(provider);
+
+        if (lastKnownLocation != null) {
+            new LatLng(lastKnownLocation.getLatitude(), lastKnownLocation.getLongitude());
+            locationManager.removeUpdates(this);
+        }
+
+        map.setOnMarkerClickListener(new OnMarkerClickListener() {
+            @Override
+            public boolean onMarkerClick(final Marker marker) {
+                marker.showInfoWindow();
+                final Handler handler = new Handler();
+                handler.post(new Runnable() {
+                    @Override
+                    public void run() {
+                        if (marker.isInfoWindowShown())
+                            handler.removeCallbacks(this);
+                        marker.hideInfoWindow();
+                        marker.showInfoWindow();
+                    }
+                });
+                return true;
+            }
+        });
+
+        map.setOnMyLocationChangeListener(new GoogleMap.OnMyLocationChangeListener() {
+            @Override
+            public void onMyLocationChange(Location location) {
+                latLng = new LatLng(location.getLatitude(), location.getLongitude());
+                myLocation = location;
+
+                if(success) {
+
+                if (savedLoc == null) {
+                    savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
+                    CameraUpdate center = CameraUpdateFactory.newLatLng(latLng);
+                    map.animateCamera(center);
+                    map.moveCamera(center);
+                    getPoints();
+                    myD = Triangle.metersToEquatorPixels(latLng, METRES_IN_KILOMETRES * 2, map);
+                    if (myD != 0)
+                        Util.saveD(ctx, myD);
+                    triangle = new Triangle(map, latLng, T_CONST);
+                } else {
+                    if (Triangle.groundOverlay != null)
+                        Triangle.groundOverlay.setPosition(latLng);
+                    Coordinate coordinate = new Coordinate(location.getLongitude(), location.getLatitude());
+                    double distance = CalculationDistance(coordinate, savedLoc);
+                    if (distance >= (Util.getRadius(ctx) * 0.5)) {
+                        getPoints();
+                    }
+                    savedLoc = new LatLng(location.getLatitude(), location.getLongitude());
+                }
+            }
+                geomagneticField = new GeomagneticField(
+                        (float) location.getLatitude(),
+                        (float) location.getLongitude(),
+                        (float) location.getAltitude(),
+                        System.currentTimeMillis());
+            }
+        });
+
         map.setMyLocationEnabled(true);
     }
 
@@ -391,19 +443,23 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         Log.d(LOG_TAG, "disable " + provider);
     }
 
-    public void getPoints() {
-        setRefreshActionButtonState(true);
-        if (myTask != null) {
-            myTask.cancel(false);
-            Log.d(LOG_TAG, "cancel myTask");
+    public static void getPoints() {
+        if (success) {
+            setRefreshActionButtonState(true);
+            if (myTask != null) {
+                myTask.cancel(false);
+                Log.d(LOG_TAG, "cancel myTask");
+            }
+            setDates();
+            offset = 0;
+            newPoints = new ArrayList<>();
+            myTask = (new ParseTask()).execute();
+        } else {
+            Authorization.execute(auth_dialog);
         }
-        setDates();
-        offset = 0;
-        newPoints = new ArrayList<>();
-        myTask = (new ParseTask()).execute();
     }
 
-    public class ParseTask extends AsyncTask<Void, Void, String> {
+    public static class ParseTask extends AsyncTask<Void, Void, String> {
         private HttpURLConnection urlConnection = null;
         private BufferedReader reader = null;
         private Boolean available = false;
@@ -424,6 +480,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
                 URL url = makeURL(NUMBER, offset, Util.getRadius(ctx), RESERVE,
                         dateFrom, dateTo, myLocation.getLongitude(), myLocation.getLatitude());
+                Log.d("", "get points URL " + url);
                 resultJson = null;
 
                 if (url != null) {
@@ -431,15 +488,21 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                         urlConnection = (HttpURLConnection) url.openConnection();
                         urlConnection.setRequestMethod("GET");
                         urlConnection.setConnectTimeout(5000);
+                        urlConnection.setRequestProperty("Cookie", Util.getCookie(ctx));
                         urlConnection.connect();
 
                         int responseCode = urlConnection.getResponseCode();
+                        Log.d("", "responseCode " + responseCode);
                         if (responseCode == HttpURLConnection.HTTP_OK) {
+
+                            if(!cookie.equals("")) {
+                                System.out.println("Set cookie: " + CookieManager.getInstance().getCookie(String.valueOf(url)));
+                            }
 
                             available = true;
                             InputStream inputStream = urlConnection.getInputStream();
 
-                            StringBuffer buffer = new StringBuffer();
+                            StringBuilder buffer = new StringBuilder();
 
                             reader = new BufferedReader(new InputStreamReader(inputStream));
                             String line;
@@ -496,7 +559,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             }
             if (newPoints.size() != 0) {
                 clearMap();
-                triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), METRES_IN_KILOMETRES);
+                triangle = new Triangle(map, new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), T_CONST);
                 points = newPoints;
                 addPointsToMap(points);
             }
@@ -533,16 +596,21 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
 
         @Override
         public void onAccuracyChanged(Sensor sensor, int accuracy) {
-
         }
     };
 
     float[] inR = new float[9];
+    float[] iM = new float[9];
     float[] outR = new float[9];
     float[] valuesAccel = new float[3];
     float[] valuesMagnet = new float[3];
     float[] valuesResult = new float[3];
     private long lastUpdate = 0;
+    float angle;
+    float temp = 0;
+    float floatAzimuth = 0;
+    float s = 0;
+    private GeomagneticField geomagneticField;
 
     void getActualDeviceOrientation() {
         SensorManager.getRotationMatrix(inR, null, valuesAccel, valuesMagnet);
@@ -565,6 +633,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             default:
                 break;
         }
+        SensorManager.remapCoordinateSystem(inR, SensorManager.AXIS_X, SensorManager.AXIS_Z, outR);
         SensorManager.remapCoordinateSystem(inR, x_axis, y_axis, outR);
         SensorManager.getOrientation(outR, valuesResult);
         long curTime = System.currentTimeMillis();
@@ -572,34 +641,90 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         if ((curTime - lastUpdate) > 100) {
             lastUpdate = curTime;
             if (triangle != null) {
-//                    Log.d(LOG_TAG, "sum = " + sum);
-//                    Log.d(LOG_TAG, " RADIANS [0] " + (valuesResult[0])
-//                            + " [1] " + (valuesResult[1])
-//                            + " [2] " + (valuesResult[2]));
-//                    Log.d(LOG_TAG, "degrees [0] " + (float) toDegrees(valuesResult[0])
-//                    + "degrees [1] " + (float) toDegrees(valuesResult[1])
-//                    + "degrees [2] " + (float) toDegrees(valuesResult[2]));
-//                    float all = (float) (toDegrees(valuesResult[0]) + toDegrees(valuesResult[1]) + toDegrees(valuesResult[2]));
-                float value = getAverage((float) toDegrees(valuesResult[0]));
-//                    Log.d(LOG_TAG, "all = " + all);
-//                    if(toDegrees(valuesResult[0]) < 0) {
-//                        value = getAverage(-all);
-//                    }
+//                Log.d(LOG_TAG, "ACCEL " + toDegrees(valuesAccel[0])
+//                        + " [1] " + toDegrees(valuesAccel[1])
+//                        + " [2] " + toDegrees(valuesAccel[2]));
+//                Log.d(LOG_TAG, "MAG " + toDegrees(valuesMagnet[0])
+//                        + " [1] " + toDegrees(valuesMagnet[1])
+//                        + " [2] " + toDegrees(valuesMagnet[2]));
+//                Log.d(LOG_TAG, " RADIANS [0] " + (valuesResult[0])
+//                        + " [1] " + (valuesResult[1])
+//                        + " [2] " + (valuesResult[2]));
+//                Log.d(LOG_TAG, "degrees[0] " + (float) toDegrees(valuesResult[0])
+//                        + " degrees[1] " + (float) toDegrees(valuesResult[1])
+//                        + " degrees[2] " + (float) toDegrees(valuesResult[2]));
+//                float floatAzimuth = (float) (toDegrees(valuesResult[0]) + 360) % 360;
 
-//                    if(toDegrees(valuesResult[0]) < 0) {
-//                        value = -value;
+                floatAzimuth = (float) toDegrees(valuesResult[0]);
+                if (abs(floatAzimuth - angle) >= 15) {
+//                if (geomagneticField != null) {
+//                    floatAzimuth += geomagneticField.getDeclination();
+//                }
+//                if(floatAzimuth < 0) {
+//                    floatAzimuth += 360;
+//                }
+                    float value = 0;
+//                Log.d(LOG_TAG, "floatAzimuth = " + floatAzimuth);
+                    if (map != null) {
+//                  value = avg(angle, floatAzimuth);
+//                        temp = angle;
+//                        while (temp < floatAzimuth) {
+
+//                            temp += 0.5;
+//                        temp = getAverage(floatAzimuth);
+//                    if(temp <= angle) {
+//                            value = getAverage(temp);
+                        value = avg(angle, temp);  //old
+                    }
+//                    else {
+//                        value = avg(temp, angle);
 //                    }
-//                if (value < 0)
-//                    value = 360 + value;
+                    angle = value;
+                    s = floatAzimuth;
+//                        CameraPosition cameraPosition = new CameraPosition.Builder().target(latLng).zoom(14).bearing(value).build();
+//                        map.animateCamera(CameraUpdateFactory.newCameraPosition(cameraPosition), 1000, null);
+//                    triangle.updateTriangle(value);
 //                    Log.d(LOG_TAG, "value to rotate " + value);
-                triangle.updateTriangle(value);
-                coords = triangle.getCoords();
-                showPointsOnTriangle();
+//                    }
+//                        }
+//                    }
+                    angle = (float) toDegrees(valuesResult[0]);
+                    coords = triangle.getCoords();
+                    showPointsOnTriangle();
+                }
             }
         }
     }
 
-    int window = 10;
+    public float avg(float oldAngle, float angle) {
+        float diff = abs(angle - oldAngle);
+//        if ((floatAzimuth >= s) && (floatAzimuth - s) > 180) {
+//            diff = 360 - (floatAzimuth - s);
+//        }
+//        else if((floatAzimuth < s) && (s - floatAzimuth) > 180) {
+//            diff = 360 - (s - floatAzimuth);
+//        }
+//        Log.d(LOG_TAG, "diff " + diff);
+        if (angle < oldAngle) {
+            return oldAngle - diff / 2;
+        }
+        return oldAngle + diff / 2;
+
+//        float diff = angle - oldAngle;
+////        if ((floatAzimuth >= oldAngle) && (floatAzimuth + oldAngle) > 180) {
+////            diff = 360 - (floatAzimuth + oldAngle);
+////        }
+////        else if((floatAzimuth < oldAngle) && (oldAngle - floatAzimuth) > 180) {
+////            diff = 360 - (oldAngle - floatAzimuth);
+////        }
+//        Log.d(LOG_TAG, "diff " + diff);
+//        if(angle < oldAngle) {
+//            return oldAngle - diff / 2;
+//        }
+//        return oldAngle + diff / 2;
+    }
+
+    int window = 20;
     float sum = 0;
     float[] arr = new float[window];
     int index = 0;
@@ -614,13 +739,20 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
             index = 0;
         }
         result = sum / window;
+//        Log.d(LOG_TAG, "res" + result);
+//        Log.d(LOG_TAG, "abs(angle - value)" + abs(angle - value));
+//        if (abs(angle - value) > 180) {
+//            result = 360 - abs(result);
+//        }
+//        Log.d(LOG_TAG, "value " + value);
+//        Log.d(LOG_TAG, "result " + result);
         return result;
     }
 
-    public void addMyMarkers() {
+    public static void addMyMarkers() {
         Point p;
         pointsOnMap = new ArrayList<>();
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < 6; i++) {
             p = new Point(new JSONObject());
             p.setId("id" + i);
             p.setDescription("id" + i);
@@ -637,6 +769,12 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
                 case 3:
                     p.setCoordinates(59.9908704, 30.3308796);
                     break;
+                case 4:
+                    p.setCoordinates(59.973386, 30.321369);
+                    break;
+                case 5:
+                    p.setCoordinates(59.970852, 30.320211);
+                    break;
             }
             pointsOnMap.add(p);
             MarkerOptions markerOptions = getMarkerForItem(p);
@@ -651,7 +789,7 @@ public class MainActivity extends ActionBarActivity implements OnMapReadyCallbac
         if (coords != null) {
             for (Point point : pointsOnMap) {
                 Marker marker = visibleMarkers.get(point.getId());
-                if(marker != null) {
+                if (marker != null) {
                     if (isInTriangle(point)) {
                         if (!marker.isInfoWindowShown())
                             marker.setIcon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_BLUE));

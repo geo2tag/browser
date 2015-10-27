@@ -34,14 +34,57 @@ public class Util {
     private static final String DATE_TIME_TO = "dateTimeTo";
     private static final String EQUATOR_PIXELS_SHARED_PREF = "equatorPixelsSharedPref";
     private static final String EQUATOR_PIXELS = "equatorPixels";
+    private static final String CODE_SHARED_PREF = "codeSharedPreferences";
+    private static final String CODE = "code" ;
+    private static final String REFRESH_TOKEN_SHARED_PREF = "refreshTokenSharedPreferences";
+    private static final String REFRESH_TOKEN = "refreshToken" ;
+    private static final String COOKIE_SHARED_PREF = "cookieSharedPreferences";
+    private static final String COOKIE = "cookie" ;
 
     public static int minD = 0;
     public static int minRadius = 1;
     public static long defaultDateFrom = 0;
     public static long defaultDateTo;
     public static String defaultJson = "";
+    public static String defaultCode = "";
     public static String defaultStringDateFrom = "01-01-1970";
     public static String defaultStringTimeFrom = "0:0";
+
+    public static void saveCookie(Context ctx, String cookie) {
+        SharedPreferences preferences = ctx.getSharedPreferences(COOKIE_SHARED_PREF, Context.MODE_APPEND);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString(COOKIE, cookie);
+        editor.apply();
+    }
+
+    public static String getCookie(Context ctx) {
+        SharedPreferences preferences = ctx.getSharedPreferences(COOKIE_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getString(COOKIE, defaultCode);
+    }
+
+    public static void saveRefreshToken(Context ctx, String token) {
+        SharedPreferences preferences = ctx.getSharedPreferences(REFRESH_TOKEN_SHARED_PREF, Context.MODE_APPEND);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString(REFRESH_TOKEN, token);
+        editor.apply();
+    }
+
+    public static String getRefreshToken(Context ctx) {
+        SharedPreferences preferences = ctx.getSharedPreferences(REFRESH_TOKEN_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getString(REFRESH_TOKEN, defaultCode);
+    }
+
+    public static void saveCode(Context ctx, String token) {
+        SharedPreferences preferences = ctx.getSharedPreferences(CODE_SHARED_PREF, Context.MODE_APPEND);
+        SharedPreferences.Editor editor = preferences.edit();
+        editor.putString(CODE, token);
+        editor.apply();
+    }
+
+    public static String getCode(Context ctx) {
+        SharedPreferences preferences = ctx.getSharedPreferences(CODE_SHARED_PREF, Context.MODE_PRIVATE);
+        return preferences.getString(CODE, defaultCode);
+    }
 
     public static void saveD(Context ctx, int d) {
         SharedPreferences preferences = ctx.getSharedPreferences(EQUATOR_PIXELS_SHARED_PREF, Context.MODE_PRIVATE);

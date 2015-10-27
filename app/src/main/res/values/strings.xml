@@ -21,4 +21,6 @@
     <string name="menu_item_refresh">refresh</string>
     <string name="working">working</string>
     <string name="start">start</string>
+    <string name="title_activity_auth">AuthActivity</string>
+    <string name="auth">To get started with application you must be logged.</string>
 </resources>
